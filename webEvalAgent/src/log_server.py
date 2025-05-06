@@ -8,6 +8,7 @@ from flask_socketio import SocketIO
 import logging
 import os
 from datetime import datetime
+import json
 
 # Track active dashboard tabs
 active_dashboard_tabs = {}
@@ -101,13 +102,17 @@ def handle_disconnect():
         pass
 
 def send_log(message: str, emoji: str = "➡️", log_type: str = 'agent'):
-    """Sends a log message with an emoji prefix and type to all connected clients."""
+    """Sends a log message with an emoji prefix and type to all connected clients as a JSON string."""
     try:
-        log_entry = f"{emoji} {message}"
-        # Also output logs to terminal for user-friendly CLI experience
-        print(log_entry, flush=True)
-        # Include log_type in the emitted data
-        socketio.emit('log_message', {'data': log_entry, 'type': log_type})
+        log_entry = {
+            "message": message,
+            "emoji": emoji,
+            "type": log_type
+        }
+        # Output logs to terminal for user-friendly CLI experience
+        print(f"{emoji} {message}", flush=True)
+        # Emit as a JSON string to ensure valid JSON is sent
+        socketio.emit('log_message', json.dumps(log_entry, ensure_ascii=False))
     except Exception:
         pass
 
