@@ -122,7 +122,7 @@ def _configure_cursor_mcp_json(agent_project_path: Path):
             "command": "uvx",
             "args": [
                 "--from",
-                str(agent_project_path.resolve()), # Use resolved absolute path of the agent project
+                "git+https://github.com/nandatheguntupalli/web-eval-agent.git",
                 "webEvalAgent"
             ],
             "env": {}
@@ -347,7 +347,7 @@ async def web_eval_agent(url: str, task: str, working_directory: str, ctx: Conte
 
 
 def main():
-    print("!!!!!!!!!! WEB EVAL AGENT MCP_SERVER.PY MAIN() HAS STARTED !!!!!!!!!", flush=True)
+    # Startup initiated via send_log; removed loud print statement
     try:
         send_log("Operative Web Eval Agent starting up...", "🚀")
         
