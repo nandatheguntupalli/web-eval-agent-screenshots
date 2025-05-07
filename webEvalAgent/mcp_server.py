@@ -118,7 +118,7 @@ def ensure_playwright_browsers():
         send_log(f"{RED}✗ Error during Playwright browser setup: {e}{NC}", "❌")
         raise # Re-raise critical errors
 
-def _configure_cursor_mcp_json(agent_project_path: Path):
+def _configure_cursor_mcp_json(agent_project_path: Path, api_key=None):
     """Attempts to automatically configure Cursor's mcp.json file."""
     cursor_mcp_file = Path.home() / ".cursor" / "mcp.json"
     server_name = "web-eval-agent-operative"
@@ -160,8 +160,12 @@ def _configure_cursor_mcp_json(agent_project_path: Path):
                 "webEvalAgent"
             ],
             "env": {}
-            # API key is handled by the agent itself now, so not explicitly set here.
         }
+        
+        # Add API key to environment variables if provided
+        if api_key:
+            server_config["env"]["OPERATIVE_API_KEY"] = api_key
+            send_log(f"{GREEN}✓ API key added to Cursor MCP configuration{NC}", "✅")
 
         # Add or update the server entry
         mcp_config["mcpServers"][server_name] = server_config
@@ -172,6 +176,8 @@ def _configure_cursor_mcp_json(agent_project_path: Path):
         
         send_log(f"{GREEN}✓ Successfully updated Cursor MCP configuration at {cursor_mcp_file}.{NC}", "✅")
         send_log(f"{RED}{BOLD}⚠️ IMPORTANT: Please restart Cursor for these changes to take effect!{NC}", "⚠️")
+        
+        return cursor_mcp_file, mcp_config
 
     except OSError as e_os:
         send_log(f"{RED}✗ OS Error updating Cursor MCP file {cursor_mcp_file}: {e_os}{NC}", "❌")
@@ -179,6 +185,8 @@ def _configure_cursor_mcp_json(agent_project_path: Path):
     except Exception as e_general:
         send_log(f"{RED}✗ Unexpected error during Cursor MCP auto-configuration: {e_general}{NC}", "❌")
         send_log(f"{YELLOW}ℹ Cursor MCP auto-configuration failed. Please configure manually.{NC}", "ℹ️")
+    
+    return None, None
 
 def _validate_api_key_server_side(api_key_to_validate):
     """Validates API key with the backend server."""
@@ -209,20 +217,42 @@ def _validate_api_key_server_side(api_key_to_validate):
         return False, "Invalid JSON response from validation server."
 
 def get_and_validate_api_key():
-    """Gets API key from env, local config, or prompts user, then validates and stores it."""
+    """Gets API key from env, MCP config, or prompts user, then validates and stores it."""
     api_key = os.environ.get("OPERATIVE_API_KEY")
     source = "environment variable"
 
+    # Check MCP config first if environment variable is not set
     if not api_key:
-        send_log(f"{YELLOW}ℹ API key not found in environment variables. Checking local config...{NC}", "🔍")
+        send_log(f"{YELLOW}ℹ API key not found in environment variables. Checking MCP config...{NC}", "🔍")
+        cursor_mcp_file = Path.home() / ".cursor" / "mcp.json"
+        server_name = "web-eval-agent-operative"
+        
+        if cursor_mcp_file.exists():
+            try:
+                with open(cursor_mcp_file, 'r') as f:
+                    mcp_config = json.load(f)
+                    if (isinstance(mcp_config, dict) and 
+                        "mcpServers" in mcp_config and 
+                        isinstance(mcp_config["mcpServers"], dict) and
+                        server_name in mcp_config["mcpServers"] and
+                        "env" in mcp_config["mcpServers"][server_name] and
+                        "OPERATIVE_API_KEY" in mcp_config["mcpServers"][server_name]["env"]):
+                        api_key = mcp_config["mcpServers"][server_name]["env"]["OPERATIVE_API_KEY"]
+                        source = "MCP config file"
+            except (json.JSONDecodeError, OSError):
+                send_log(f"{YELLOW}ℹ Error reading Cursor MCP config file. Cannot retrieve API key.{NC}", "⚠️")
+    
+    # Check legacy config file if MCP config doesn't have the key
+    if not api_key:
+        send_log(f"{YELLOW}ℹ API key not found in MCP config. Checking legacy config...{NC}", "🔍")
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         if CONFIG_FILE.exists():
             try:
                 config_data = json.loads(CONFIG_FILE.read_text())
                 api_key = config_data.get("OPERATIVE_API_KEY")
-                source = "local config file"
+                source = "legacy config file"
             except json.JSONDecodeError:
-                send_log(f"{YELLOW}ℹ Error reading local API key config file ({CONFIG_FILE}). File might be corrupted.{NC}", "⚠️")
+                send_log(f"{YELLOW}ℹ Error reading legacy API key config file ({CONFIG_FILE}). File might be corrupted.{NC}", "⚠️")
                 api_key = None # Ensure api_key is None if file is corrupt
         
     if api_key:
@@ -239,13 +269,11 @@ def get_and_validate_api_key():
     while True:
         send_log(f"{BOLD}An Operative.sh API key is required for this installation.{NC}", "🔑")
         send_log(f"If you don't have one, please visit {BOLD}https://operative.sh{NC} to get your key.", "🔑")
-        # This input method might not work reliably when run as a background MCP server.
-        # A more robust solution (e.g., a first-run setup UI or command) might be needed for some MCP clients.
         try:
             prompted_key = input("Please enter your Operative.sh API key: ")
         except EOFError: # Happens if stdin is not available (e.g. background process)
-             send_log(f"{RED}✗ Could not read API key from input (EOFError). Ensure OPERATIVE_API_KEY is set in the environment or ~/.operative/config.json{NC}", "❌")
-             raise ValueError("API Key could not be obtained via input. Configure it via environment or local file.")
+             send_log(f"{RED}✗ Could not read API key from input (EOFError). Ensure OPERATIVE_API_KEY is set in the environment or MCP config.{NC}", "❌")
+             raise ValueError("API Key could not be obtained via input. Configure it via environment or MCP config.")
 
         if not prompted_key:
             send_log(f"{RED}✗ API key cannot be empty. Please try again.{NC}", "❌")
@@ -253,12 +281,22 @@ def get_and_validate_api_key():
         
         is_valid, msg = _validate_api_key_server_side(prompted_key)
         if is_valid:
+            # Save API key to MCP config
+            cursor_mcp_file = Path.home() / ".cursor" / "mcp.json"
+            server_name = "web-eval-agent-operative"
             try:
-                CONFIG_DIR.mkdir(parents=True, exist_ok=True) # Ensure dir exists again
-                CONFIG_FILE.write_text(json.dumps({"OPERATIVE_API_KEY": prompted_key}))
-                send_log(f"{GREEN}✓ API key validated and saved to {CONFIG_FILE}{NC}", "✅")
-            except IOError as e:
-                send_log(f"{YELLOW}ℹ Could not save API key to {CONFIG_FILE}: {e}. Key will not be persisted.{NC}", "⚠️")
+                # Update MCP config with API key
+                mcp_file, mcp_config = _configure_cursor_mcp_json(Path(".").resolve(), prompted_key)
+                if mcp_file:
+                    send_log(f"{GREEN}✓ API key validated and saved to MCP config at {mcp_file}{NC}", "✅")
+                else:
+                    # Fallback to legacy config if MCP config update fails
+                    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+                    CONFIG_FILE.write_text(json.dumps({"OPERATIVE_API_KEY": prompted_key}))
+                    send_log(f"{YELLOW}ℹ Could not save API key to MCP config. Saved to legacy config at {CONFIG_FILE} instead.{NC}", "⚠️")
+            except Exception as e:
+                send_log(f"{YELLOW}ℹ Could not save API key to MCP config: {e}. Key will not be persisted.{NC}", "⚠️")
+            
             OPERATIVE_API_KEY_HOLDER["key"] = prompted_key
             return prompted_key
         else:
@@ -420,40 +458,36 @@ def main():
                 # If there's an error reading the file, we'll proceed with configuration
                 pass
                 
-        # Attempt to configure Cursor MCP if not configured
+        # First get and validate API key regardless of configuration state
+        print(f"\n{BLUE}{BOLD}=== API Key Configuration ==={NC}\n")
+        send_log(f"{BOLD}Obtaining and validating API key...{NC}", "🔑")
+        operative_key = get_and_validate_api_key()
+        if not operative_key:
+            send_log(f"{RED}✗ Critical: Operative API key could not be obtained or validated. Exiting.{NC}", "❌")
+            return # Exit if no key
+            
+        send_log(f"{BOLD}Using Operative API Key ending with ...{operative_key[-4:] if len(operative_key) > 4 else operative_key}{NC}", "🔑")
+        
+        # If not already configured, set up the MCP configuration with the API key
         if not is_already_configured:
             print(f"\n{BLUE}{BOLD}=== Setting up configuration ==={NC}\n")
-            _configure_cursor_mcp_json(agent_project_path)
+            # Configure MCP with API key
+            _configure_cursor_mcp_json(agent_project_path, operative_key)
 
-            # 1. Ensure Playwright browsers are installed
+            # Ensure Playwright browsers are installed
             print(f"\n{BLUE}{BOLD}=== Checking dependencies ==={NC}\n")
             send_log(f"{BOLD}Checking for Playwright browser installation...{NC}", "🔍")
             ensure_playwright_browsers()
-            
-            # 2. Get and validate API key
-            # This will prompt if not found in env or local config.
-            # The validated key is stored in OPERATIVE_API_KEY_HOLDER["key"]
-            print(f"\n{BLUE}{BOLD}=== API Key Configuration ==={NC}\n")
-            send_log(f"{BOLD}Obtaining and validating API key...{NC}", "🔑")
-            operative_key = get_and_validate_api_key()
-            if not operative_key: # Should not happen if get_and_validate_api_key raises on failure
-                send_log(f"{RED}✗ Critical: Operative API key could not be obtained or validated. Exiting.{NC}", "❌")
-                return # Exit if no key
-
-            send_log(f"{BOLD}Using Operative API Key ending with ...{operative_key[-4:] if len(operative_key) > 4 else operative_key}{NC}", "🔑")
             
             # Installation complete; instruct user to restart and exit
             print(f"\n{BLUE}{BOLD}=== Installation Complete! 🎉 ==={NC}\n")
             send_log(f"{BOLD}Installation complete. Please restart Cursor for these changes to take effect!{NC}", "⚠️")
             return
         else:
-            # We're running in server mode
-            # Get API key (should be already validated during setup)
-            operative_key = get_and_validate_api_key()
-            if not operative_key:
-                send_log(f"{RED}✗ Critical: Operative API key could not be obtained or validated. Exiting.{NC}", "❌")
-                return
-                
+            # We're running in server mode - update MCP config with API key if needed
+            # This updates the key if it's changed since last run
+            cursor_mcp_file, _ = _configure_cursor_mcp_json(agent_project_path, operative_key)
+            
             send_log(f"{BOLD}API key validated. Starting MCP server...{NC}", "🛰️")
             # Run the FastMCP server
             mcp.run(transport='stdio')
