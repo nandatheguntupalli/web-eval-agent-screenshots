@@ -481,7 +481,7 @@ def main():
             
             # Installation complete; instruct user to restart and exit
             print(f"\n{BLUE}{BOLD}=== Installation Complete! 🎉 ==={NC}\n")
-            send_log(f"{BOLD}Installation complete. Please restart Cursor for these changes to take effect!{NC}", "⚠️")
+            send_log(f"{RED}{BOLD}⚠️ IMPORTANT: Please restart Cursor for these changes to take effect!{NC}", "⚠️")
             return
         else:
             # We're running in server mode - update MCP config with API key if needed
