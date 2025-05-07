@@ -422,10 +422,10 @@ def main():
 
         send_log(f"{BOLD}Using Operative API Key ending with ...{operative_key[-4:] if len(operative_key) > 4 else operative_key}{NC}", "🔑")
         
-        # Run the FastMCP server
+        # Installation complete; instruct user to restart and exit
         print(f"\n{BLUE}{BOLD}=== Installation Complete! 🎉 ==={NC}\n")
-        send_log(f"{BOLD}Starting MCP server...{NC}", "🛰️")
-        mcp.run(transport='stdio')
+        send_log(f"{BOLD}Installation complete. Please restart Cursor for these changes to take effect!{NC}", "⚠️")
+        return
 
     except ValueError as e: # Catch API key validation errors from get_and_validate_api_key
         send_log(f"{RED}✗ Agent startup failed due to API key issue: {e}{NC}", "❌")
