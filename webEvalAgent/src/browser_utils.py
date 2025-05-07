@@ -46,7 +46,6 @@ original_create_context: Optional[callable] = None  # Store original patched met
 active_cdp_session = None  # Store active CDP session for input handling
 active_screencast_running = False  # Track if screencast is running
 browser_task_loop = None  # Store the asyncio loop used by run_browser_task
-screenshot_task = None  # Store the periodic screenshot task
 
 # Define the maximum number of logs/requests to keep
 MAX_LOG_ENTRIES = 10
@@ -569,7 +568,7 @@ def set_screencast_running(running: bool = True) -> None:
     active_screencast_running = running
 
 async def run_browser_task(task: str, model: str = "gemini-2.0-flash-001", ctx: Context = None, tool_call_id: str = None, api_key: str = None, headless: bool = True) -> Dict[str, Any]:
-    global browser_task_loop, screenshot_task
+    global browser_task_loop
     # Store the current asyncio loop for input handling
     browser_task_loop = asyncio.get_running_loop()
     """
@@ -718,47 +717,6 @@ async def run_browser_task(task: str, model: str = "gemini-2.0-flash-001", ctx: 
                 import traceback
             
             send_log("CDP screencast started for browser-use browser.", "📹", log_type='status')
-            
-            # Define the periodic screenshot capture function
-            async def capture_screenshots(page, interval=1/30):
-                """Capture screenshots at the specified interval in seconds (30 FPS)."""
-                global active_screencast_running
-                send_log("Starting periodic screenshot capture at 30 FPS", "🎬", log_type='status')
-                try:
-                    while active_screencast_running:
-                        try:
-                            # Take a screenshot
-                            screenshot_bytes = await page.screenshot(type='jpeg', quality=80)
-                            
-                            # Convert to base64
-                            screenshot_b64 = base64.b64encode(screenshot_bytes).decode('utf-8')
-                            
-                            # Format as data URL
-                            screenshot_data_url = f"data:image/jpeg;base64,{screenshot_b64}"
-                            
-                            # Send to frontend
-                            from .log_server import send_browser_view
-                            await send_browser_view(screenshot_data_url)
-                            
-                        except Exception as e:
-                            if not active_screencast_running:
-                                break
-                            # Don't log every error to avoid spamming
-                            if "Target closed" in str(e) or "Session closed" in str(e) or "Connection closed" in str(e):
-                                active_screencast_running = False
-                                break
-                        
-                        # Wait for the next interval
-                        await asyncio.sleep(interval)
-                except asyncio.CancelledError:
-                    send_log("Periodic screenshot capture stopped", "🛑", log_type='status')
-                except Exception as e:
-                    send_log(f"Screenshot capture error: {e}", "❌", log_type='status')
-            
-            # Start the screenshot capture task
-            active_screencast_running = True
-            screenshot_task = asyncio.create_task(capture_screenshots(first_page))
-            
         except Exception as e:
             send_log(f"Failed to start CDP screencast: {e}", "❌", log_type='status')
             import traceback
@@ -900,16 +858,6 @@ async def run_browser_task(task: str, model: str = "gemini-2.0-flash-001", ctx: 
         }
     finally:
         # --- Cleanup ---
-        # Cancel the screenshot task if it's running
-        if screenshot_task:
-            screenshot_task.cancel()
-            try:
-                await screenshot_task
-            except asyncio.CancelledError:
-                pass
-            screenshot_task = None
-            send_log("Periodic screenshot task canceled", "🧹", log_type='status')
-        
         # Restore the original bring_to_front method
         if _original_bring_to_front:
             PlaywrightPage.bring_to_front = _original_bring_to_front

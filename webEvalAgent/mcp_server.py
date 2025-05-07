@@ -272,7 +272,7 @@ async def web_eval_agent(url: str, task: str, working_directory: str, ctx: Conte
                          observations, issues found, and recommendations for improvement
                          and screenshots of the web application during the evaluation
     """
-    external_browser = False
+    external_browser = True
     # Convert external_browser to headless parameter (inverse logic)
     headless = not external_browser
     
