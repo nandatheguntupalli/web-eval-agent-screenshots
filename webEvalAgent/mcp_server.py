@@ -281,6 +281,22 @@ def get_and_validate_api_key():
         
         is_valid, msg = _validate_api_key_server_side(prompted_key)
         if is_valid:
+            # Save API key to MCP config
+            cursor_mcp_file = Path.home() / ".cursor" / "mcp.json"
+            server_name = "web-eval-agent-operative"
+            try:
+                # Update MCP config with API key
+                mcp_file, mcp_config = _configure_cursor_mcp_json(Path(".").resolve(), prompted_key)
+                if mcp_file:
+                    send_log(f"{GREEN}✓ API key validated and saved to MCP config at {mcp_file}{NC}", "✅")
+                else:
+                    # Fallback to legacy config if MCP config update fails
+                    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+                    CONFIG_FILE.write_text(json.dumps({"OPERATIVE_API_KEY": prompted_key}))
+                    send_log(f"{YELLOW}ℹ Could not save API key to MCP config. Saved to legacy config at {CONFIG_FILE} instead.{NC}", "⚠️")
+            except Exception as e:
+                send_log(f"{YELLOW}ℹ Could not save API key to MCP config: {e}. Key will not be persisted.{NC}", "⚠️")
+            
             OPERATIVE_API_KEY_HOLDER["key"] = prompted_key
             return prompted_key
         else:
@@ -452,9 +468,29 @@ def main():
             
         send_log(f"{BOLD}Using Operative API Key ending with ...{operative_key[-4:] if len(operative_key) > 4 else operative_key}{NC}", "🔑")
         
-        # Start the MCP server
-        send_log(f"{BOLD}API key validated. Starting MCP server...{NC}", "🛰️")
-        mcp.run(transport='stdio')
+        # If not already configured, set up the MCP configuration with the API key
+        if not is_already_configured:
+            print(f"\n{BLUE}{BOLD}=== Setting up configuration ==={NC}\n")
+            # Configure MCP with API key
+            _configure_cursor_mcp_json(agent_project_path, operative_key)
+
+            # Ensure Playwright browsers are installed
+            print(f"\n{BLUE}{BOLD}=== Checking dependencies ==={NC}\n")
+            send_log(f"{BOLD}Checking for Playwright browser installation...{NC}", "🔍")
+            ensure_playwright_browsers()
+            
+            # Installation complete; instruct user to restart and exit
+            print(f"\n{BLUE}{BOLD}=== Installation Complete! 🎉 ==={NC}\n")
+            send_log(f"{RED}{BOLD}⚠️ IMPORTANT: Please restart Cursor for these changes to take effect!{NC}", "⚠️")
+            return
+        else:
+            # We're running in server mode - update MCP config with API key if needed
+            # This updates the key if it's changed since last run
+            cursor_mcp_file, _ = _configure_cursor_mcp_json(agent_project_path, operative_key)
+            
+            send_log(f"{BOLD}API key validated. Starting MCP server...{NC}", "🛰️")
+            # Run the FastMCP server
+            mcp.run(transport='stdio')
 
     except ValueError as e: # Catch API key validation errors from get_and_validate_api_key
         send_log(f"{RED}✗ Agent startup failed due to API key issue: {e}{NC}", "❌")
