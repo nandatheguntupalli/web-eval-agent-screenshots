@@ -102,17 +102,13 @@ def handle_disconnect():
         pass
 
 def send_log(message: str, emoji: str = "➡️", log_type: str = 'agent'):
-    """Sends a log message with an emoji prefix and type to all connected clients as a JSON string."""
+    """Send a log message with an emoji prefix and type to all connected clients."""
+    # Ensure socketio context is available. If called from a non-SocketIO thread,
+    # use socketio.emit directly.
     try:
-        log_entry = {
-            "message": message,
-            "emoji": emoji,
-            "type": log_type
-        }
-        # Output logs to terminal for user-friendly CLI experience
-        print(f"{emoji} {message}", flush=True)
-        # Emit as a JSON string to ensure valid JSON is sent
-        socketio.emit('log_message', json.dumps(log_entry, ensure_ascii=False))
+        log_entry = f"{emoji} {message}"
+        # Include log_type in the emitted data
+        socketio.emit('log_message', {'data': log_entry, 'type': log_type})
     except Exception:
         pass
 
