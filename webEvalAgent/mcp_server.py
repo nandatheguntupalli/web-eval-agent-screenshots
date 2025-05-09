@@ -17,7 +17,7 @@ import sys
 from typing import Any, Dict, List, Union
 from webEvalAgent.src.log_server import send_log
 
-# Set the API key to a fake key to avoid error in backend
+# Set the API key to a fake key to avoid error in backend validation
 os.environ["ANTHROPIC_API_KEY"] = 'not_a_real_key'
 os.environ["ANONYMIZED_TELEMETRY"] = 'false'
 
