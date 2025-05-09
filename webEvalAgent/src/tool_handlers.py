@@ -177,8 +177,33 @@ async def handle_web_evaluation(arguments: Dict[str, Any], ctx: Context, api_key
     # Prepare screenshots for the gallery
     gallery_screenshot_data_urls = []
     if screenshots: # Ensure screenshots is not None and not empty
-        gallery_screenshot_data_urls = [s_data['screenshot'] for s_data in screenshots if s_data and isinstance(s_data, dict) and s_data.get('screenshot')]
+        for i, s_data in enumerate(screenshots):
+            if (s_data and isinstance(s_data, dict) and 
+                'screenshot' in s_data and 
+                isinstance(s_data['screenshot'], str) and 
+                s_data['screenshot'].startswith('data:image/') and 
+                'base64,' in s_data['screenshot']):
+                
+                gallery_screenshot_data_urls.append(s_data['screenshot'])
+            else:
+                # Log issue with this specific screenshot
+                if isinstance(s_data, dict):
+                    keys = list(s_data.keys())
+                    send_log(f"Invalid screenshot at index {i}. Keys: {keys}", "⚠️")
+                    
+                    if 'screenshot' in s_data:
+                        if not isinstance(s_data['screenshot'], str):
+                            send_log(f"Screenshot data is not a string but {type(s_data['screenshot'])}", "⚠️")
+                        elif len(s_data['screenshot']) < 50:  # Very short, definitely invalid
+                            send_log(f"Screenshot data too short: {s_data['screenshot']}", "⚠️")
+                        elif not s_data['screenshot'].startswith('data:image/'):
+                            prefix = s_data['screenshot'][:30] + "..." if len(s_data['screenshot']) > 30 else s_data['screenshot']
+                            send_log(f"Screenshot data has invalid prefix: {prefix}", "⚠️")
+                else:
+                    send_log(f"Screenshot data at index {i} is not a dict: {type(s_data)}", "⚠️")
+        
         try:
+            send_log(f"Sending {len(gallery_screenshot_data_urls)} valid screenshots to gallery", "📸")
             set_gallery_screenshots(gallery_screenshot_data_urls)
         except Exception as e:
             send_log(f"Error updating screenshot gallery: {e}", "❌")

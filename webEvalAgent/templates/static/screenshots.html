@@ -181,17 +181,57 @@
             const screenshotDiv = document.createElement('div');
             screenshotDiv.className = 'relative group overflow-hidden bg-light-secondary-bg dark:bg-dark-secondary-bg border border-light-border dark:border-dark-border rounded-lg shadow-sm';
             
+            // Store the index in the screenshots array for use when opening the full-size view
+            const screenshotIndex = screenshotsContainer.childElementCount;
+            
+            // Check if the data URL is valid
+            const isValidDataUrl = typeof imageDataUrl === 'string' && 
+                                   imageDataUrl.startsWith('data:image/') && 
+                                   imageDataUrl.includes('base64,');
+            
+            if (!isValidDataUrl) {
+                // Create a fallback element for invalid images
+                const fallbackElement = document.createElement('div');
+                fallbackElement.className = 'flex items-center justify-center h-48 p-4 text-center';
+                fallbackElement.innerHTML = `
+                    <div class="flex flex-col items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <span class="text-light-secondary-text dark:text-dark-secondary-text">Invalid screenshot data</span>
+                    </div>
+                `;
+                screenshotDiv.appendChild(fallbackElement);
+                screenshotsContainer.appendChild(screenshotDiv);
+                return;
+            }
+            
             const imgElement = document.createElement('img');
-            imgElement.src = imageDataUrl;
             imgElement.alt = 'Screenshot';
             imgElement.className = 'w-full h-auto object-contain cursor-pointer';
             imgElement.loading = 'lazy'; // Lazy load images
             
-            // Store the index in the screenshots array for use when opening the full-size view
-            const screenshotIndex = screenshotsContainer.childElementCount;
+            // Add error handling for the image
+            imgElement.onerror = () => {
+                imgElement.style.display = 'none';
+                const errorElement = document.createElement('div');
+                errorElement.className = 'flex items-center justify-center h-48 p-4 text-center';
+                errorElement.innerHTML = `
+                    <div class="flex flex-col items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-red-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span class="text-red-500">Failed to load image</span>
+                    </div>
+                `;
+                screenshotDiv.appendChild(errorElement);
+            };
+            
+            // Set the source after defining the error handler
+            imgElement.src = imageDataUrl;
             
             imgElement.addEventListener('click', () => {
-                // Use the dedicated viewer page instead of the direct endpoint
+                // Use the dedicated viewer page
                 window.open(`/screenshot-view/${screenshotIndex}`, '_blank');
             });
             

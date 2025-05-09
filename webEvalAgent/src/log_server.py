@@ -181,9 +181,21 @@ def set_gallery_screenshots(screenshot_data_urls: list[str]):
         screenshot_data_urls: A list of base64 data URLs for the screenshots.
     """
     global stored_screenshots
+    
+    # Validate screenshot data URLs
+    valid_screenshots = []
+    for i, screenshot in enumerate(screenshot_data_urls):
+        # Ensure it's a string and a valid data URL
+        if (isinstance(screenshot, str) and 
+            screenshot.startswith('data:image/') and 
+            'base64,' in screenshot):
+            valid_screenshots.append(screenshot)
+        else:
+            send_log(f"Skipping invalid screenshot data at index {i}", "⚠️", log_type='status')
+    
     # Limit stored screenshots to, for example, the last 50 to save memory
     # The MCP response will have its own limits, this is for the gallery page.
-    stored_screenshots = screenshot_data_urls[-50:] 
+    stored_screenshots = valid_screenshots[-50:] 
     try:
         socketio.emit('gallery_updated', {})
         send_log(f"Screenshot gallery updated with {len(stored_screenshots)} images.", "🖼️", log_type='status')
