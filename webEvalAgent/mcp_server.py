@@ -355,11 +355,11 @@ async def web_eval_agent(url: str, task: str, ctx: Context, headless_browser: bo
     """
     headless = headless_browser
     api_key = OPERATIVE_API_KEY_HOLDER["key"]
-    is_valid, msg = await validate_api_key(api_key)
+    is_valid = await validate_api_key(api_key)
 
     if not is_valid:
         error_message_str = f"❌ Error: API Key validation failed when running the tool.\\n"
-        error_message_str += f"   Reason: {msg}\\n" # Use message from validation
+        error_message_str += f"   Reason: Invalid API key or usage limit reached.\\n"
         error_message_str += "   👉 Please check your API key or subscribe at https://operative.sh if it's a limit issue."
         return [TextContent(type="text", text=error_message_str)]
     try:
@@ -429,11 +429,11 @@ async def setup_browser_state(url: str = None, ctx: Context = None) -> list[Text
         list[TextContent]: Confirmation of state saving or error messages.
     """
     api_key = OPERATIVE_API_KEY_HOLDER["key"]
-    is_valid, msg = await validate_api_key(api_key)
+    is_valid = await validate_api_key(api_key)
 
     if not is_valid:
         error_message_str = "❌ Error: API Key validation failed when running the tool.\n"
-        error_message_str += f"   Reason: {msg}\n" # Use message from validation
+        error_message_str += "   Reason: Invalid API key or usage limit reached.\n"
         error_message_str += "   👉 Please subscribe at https://operative.sh if it's a limit issue."
         return [TextContent(type="text", text=error_message_str)]
     try:
