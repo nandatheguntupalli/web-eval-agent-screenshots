@@ -354,7 +354,8 @@ async def web_eval_agent(url: str, task: str, ctx: Context, headless_browser: bo
                          and screenshots of the web application during the evaluation
     """
     headless = headless_browser
-    is_valid = await validate_api_key(api_key)
+    api_key = OPERATIVE_API_KEY_HOLDER["key"]
+    is_valid, msg = await validate_api_key(api_key)
 
     if not is_valid:
         error_message_str = f"❌ Error: API Key validation failed when running the tool.\\n"
@@ -367,7 +368,7 @@ async def web_eval_agent(url: str, task: str, ctx: Context, headless_browser: bo
         return await handle_web_evaluation(
             {"url": url, "task": task, "headless": headless, "tool_call_id": tool_call_id},
             ctx,
-            current_api_key # Pass the validated key
+            api_key # Pass the validated key
         )
     except Exception as e:
         tb = traceback.format_exc()
@@ -427,6 +428,7 @@ async def setup_browser_state(url: str = None, ctx: Context = None) -> list[Text
     Returns:
         list[TextContent]: Confirmation of state saving or error messages.
     """
+    api_key = OPERATIVE_API_KEY_HOLDER["key"]
     is_valid = await validate_api_key(api_key)
 
     if not is_valid:
