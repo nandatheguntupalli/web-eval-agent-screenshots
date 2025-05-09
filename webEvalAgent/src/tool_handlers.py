@@ -178,13 +178,17 @@ async def handle_web_evaluation(arguments: Dict[str, Any], ctx: Context, api_key
     gallery_screenshot_data_urls = []
     if screenshots: # Ensure screenshots is not None and not empty
         for i, s_data in enumerate(screenshots):
-            if (s_data and isinstance(s_data, dict) and 
-                'screenshot' in s_data and 
-                isinstance(s_data['screenshot'], str) and 
-                s_data['screenshot'].startswith('data:image/') and 
-                'base64,' in s_data['screenshot']):
+            if (s_data and isinstance(s_data, dict) and 'screenshot' in s_data and isinstance(s_data['screenshot'], str)):
+                screenshot_data = s_data['screenshot']
                 
-                gallery_screenshot_data_urls.append(s_data['screenshot'])
+                # Check if the screenshot data already has the proper prefix
+                if screenshot_data.startswith('data:image/'):
+                    gallery_screenshot_data_urls.append(screenshot_data)
+                else:
+                    # If it doesn't start with data:image/ but is a base64 string (like those from browser_utils.py),
+                    # add the prefix to make it a valid data URL
+                    send_log(f"Adding missing prefix to screenshot data at index {i}", "🔧")
+                    gallery_screenshot_data_urls.append(f"data:image/jpeg;base64,{screenshot_data}")
             else:
                 # Log issue with this specific screenshot
                 if isinstance(s_data, dict):
@@ -218,14 +222,19 @@ async def handle_web_evaluation(arguments: Dict[str, Any], ctx: Context, api_key
     # The user's log indicated "Adding screenshot 1...", so we iterate from the start.
     for i, screenshot_data in enumerate(screenshots):
         if screenshot_data and isinstance(screenshot_data, dict) and 'screenshot' in screenshot_data and screenshot_data['screenshot']:
-            b64_length = len(screenshot_data['screenshot'])
+            image_data = screenshot_data["screenshot"]
+            b64_length = len(image_data)
             send_log(f"Adding screenshot {i+1} to MCP response ({b64_length} chars).", "➕")
             
-            # No longer need to send to dashboard here, gallery is updated separately
+            # Check if we need to add the data URL prefix
+            if not image_data.startswith('data:image/'):
+                send_log(f"Adding missing prefix to MCP screenshot {i+1}", "🔧")
+                image_data = f"data:image/jpeg;base64,{image_data}"
             
+            # No longer need to send to dashboard here, gallery is updated separately
             response.append(ImageContent(
                 type="image",
-                data=screenshot_data["screenshot"],
+                data=image_data,
                 mimeType="image/jpeg"
             ))
         else:

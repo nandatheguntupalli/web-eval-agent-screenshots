@@ -185,11 +185,18 @@ def set_gallery_screenshots(screenshot_data_urls: list[str]):
     # Validate screenshot data URLs
     valid_screenshots = []
     for i, screenshot in enumerate(screenshot_data_urls):
-        # Ensure it's a string and a valid data URL
-        if (isinstance(screenshot, str) and 
-            screenshot.startswith('data:image/') and 
-            'base64,' in screenshot):
+        # Ensure it's a string
+        if not isinstance(screenshot, str):
+            send_log(f"Skipping non-string screenshot data at index {i}", "⚠️", log_type='status')
+            continue
+            
+        # Check if it's a valid data URL
+        if screenshot.startswith('data:image/') and 'base64,' in screenshot:
             valid_screenshots.append(screenshot)
+        # Check if it's raw base64 JPEG data (starts with /9j/ which is the beginning of JPEG in base64)
+        elif screenshot.startswith('/9j/'):
+            send_log(f"Converting raw base64 JPEG to data URL at index {i}", "🔧", log_type='status')
+            valid_screenshots.append(f"data:image/jpeg;base64,{screenshot}")
         else:
             send_log(f"Skipping invalid screenshot data at index {i}", "⚠️", log_type='status')
     

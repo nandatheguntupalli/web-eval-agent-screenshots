@@ -885,19 +885,19 @@ async def run_browser_task(task: str, tool_call_id: str = None, api_key: str = N
                         # Log screenshot size for debugging
                         send_log(f"Screenshot captured: {len(screenshot_bytes)} bytes, {len(screenshot_base64)} base64 chars", "📊", log_type='status')
                         
-                        # Store screenshot with metadata
+                        # Store screenshot with metadata and include the data URL prefix
+                        screenshot_data_url = f"data:image/jpeg;base64,{screenshot_base64}"
                         screenshot_storage.append({
                             'step': step_number,
                             'url': browser_state.url,
                             'timestamp': asyncio.get_event_loop().time(),
-                            'screenshot': screenshot_base64
+                            'screenshot': screenshot_data_url  # Store with prefix already included
                         })
                         
                         send_log(f"Screenshot stored in storage (total: {len(screenshot_storage)})", "📸", log_type='status')
                         
                         # Send the screenshot to the Operative Control Center dashboard
                         from .log_server import send_browser_view
-                        screenshot_data_url = f"data:image/jpeg;base64,{screenshot_base64}"
                         await send_browser_view(screenshot_data_url)
                         send_log(f"Screenshot sent to Operative Control Center dashboard", "🖼️", log_type='status')
                         
