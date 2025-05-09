@@ -3,9 +3,6 @@ rm -rf ./mcp.json
 rm -rf ./mcp.lock
 rm -rf ./mcp.lockb
 rm -rf ./mcp.lockb.tmp
-rm -rf ./mcp.lockb.tmp.tmp
-rm -rf ./mcp.lockb.tmp.tmp.tmp
-rm -rf ./mcp.lockb.tmp.tmp.tmp.tmp
 rm -rf ~/.operative/config.json
 
 npx playwright uninstall --all
