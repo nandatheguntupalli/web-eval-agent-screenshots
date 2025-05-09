@@ -895,6 +895,12 @@ async def run_browser_task(task: str, tool_call_id: str = None, api_key: str = N
                         
                         send_log(f"Screenshot stored in storage (total: {len(screenshot_storage)})", "📸", log_type='status')
                         
+                        # Send the screenshot to the Operative Control Center dashboard
+                        from .log_server import send_browser_view
+                        screenshot_data_url = f"data:image/jpeg;base64,{screenshot_base64}"
+                        await send_browser_view(screenshot_data_url)
+                        send_log(f"Screenshot sent to Operative Control Center dashboard", "🖼️", log_type='status')
+                        
                         # Re-inject the overlay
                         send_log(f"Re-injecting overlay after step {step_number} into page {current_page.url}", "🔄", log_type='status')
                     else:

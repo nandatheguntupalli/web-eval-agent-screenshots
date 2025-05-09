@@ -3,7 +3,7 @@
 import asyncio
 import threading
 import webbrowser
-from flask import Flask, render_template, send_from_directory, request
+from flask import Flask, render_template, send_from_directory, request, jsonify
 from flask_socketio import SocketIO
 import logging
 import os
@@ -17,6 +17,9 @@ last_tab_activity = {}
 # Store current URL and task information
 current_url = ""
 current_task = ""
+
+# Store screenshots for the screenshots page
+stored_screenshots = []
 
 # --- Async mode selection ---
 _async_mode = 'threading'
@@ -53,6 +56,16 @@ def send_static(path):
 def get_url_task():
     """Return the current URL and task as JSON."""
     return {'url': current_url, 'task': current_task}
+
+@app.route('/screenshots')
+def screenshots_page():
+    """Serve the screenshots page."""
+    return render_template('static/screenshots.html')
+    
+@app.route('/get_screenshots')
+def get_screenshots():
+    """Return the stored screenshots as JSON."""
+    return jsonify(stored_screenshots)
 
 # Dashboard tab tracking handlers
 @socketio.on('register_dashboard_tab')
@@ -147,9 +160,15 @@ async def send_browser_view(image_data_url: str):
         pass
     except Exception:
         pass
+    
+    # Store the screenshot for the screenshots page
+    global stored_screenshots
+    # Store the most recent 20 screenshots to avoid using too much memory
+    stored_screenshots = [image_data_url] + stored_screenshots[:19]
         
     try:
         socketio.emit('browser_update', {'data': image_data_url})
+        socketio.emit('screenshot_added', {'data': image_data_url})
     except Exception:
         pass
 
@@ -311,8 +330,20 @@ def refresh_dashboard():
         return True
     return False
 
-def open_log_dashboard(url='http://127.0.0.1:5009'):
+def open_log_dashboard(url=None, show_screenshots=False):
     """Opens or refreshes the dashboard in the browser."""
+    if url is None:
+        # Default to localhost but allow customization
+        import os
+        custom_host = os.environ.get('OPERATIVE_DASHBOARD_HOST', '127.0.0.1')
+        base_url = f'http://{custom_host}:5009'
+        
+        # Add screenshots path if requested
+        if show_screenshots:
+            url = f'{base_url}/screenshots'
+        else:
+            url = base_url
+        
     # Try to refresh existing tabs first
     if refresh_dashboard():
         try:
@@ -340,6 +371,20 @@ if __name__ == "__main__":
     start_log_server(port=5009)  # Use a different port
     import time
     time.sleep(2)
+    
+    # Get host from environment or use default
+    import os
+    custom_host = os.environ.get('OPERATIVE_DASHBOARD_HOST', '127.0.0.1')
+    dashboard_url = f'http://{custom_host}:5009'
+    
+    # Open the main dashboard
+    open_log_dashboard()
+    set_url_and_task("https://www.example.com", "Test the URL and task display")
+    send_log("Server started and dashboard opened.", "✅", log_type='status')
+    send_log(f"Dashboard available at {dashboard_url}", "🌐", log_type='status')
+    send_log(f"Screenshots gallery available at {dashboard_url}/screenshots", "📸", log_type='status')
+    
+    # Make some test screenshots for the gallery
     open_log_dashboard(url='http://127.0.0.1:5009')
     set_url_and_task("https://www.example.com", "Test the URL and task display")
     # Use the new log_type argument

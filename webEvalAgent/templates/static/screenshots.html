@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Operative Control Center - Screenshots Gallery</title>
+    <link rel="icon" href="https://www.operative.sh/favicon.ico?v=2" type="image/x-icon">
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Add Geist Font CSS -->
+    <link rel="stylesheet" href="https://geistfont.vercel.app/geist.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class', // Enable class-based dark mode
+            theme: {
+                extend: {
+                    colors: {
+                        // Light Theme (Previously B&W)
+                        'light-bg': '#FFFFFF',
+                        'light-text': '#111827', // Use a slightly softer black (gray-900)
+                        'light-border': '#D1D5DB', // Gray-300
+                        'light-secondary-bg': '#F3F4F6', // Gray-100
+                        'light-secondary-text': '#374151', // Gray-700
+                        'light-hover-bg': '#E5E7EB', // Gray-200
+                        'light-hover-border': '#9CA3AF', // Gray-400
+                        'light-active-bg': '#D1D5DB', // Gray-300
+
+                        // Dark Theme
+                        'dark-bg': '#111827', // Gray-900
+                        'dark-text': '#E5E7EB', // Gray-200
+                        'dark-border': '#374151', // Gray-700
+                        'dark-secondary-bg': '#1F2937', // Gray-800
+                        'dark-secondary-text': '#9CA3AF', // Gray-400
+                        'dark-hover-bg': '#374151', // Gray-700
+                        'dark-hover-border': '#6B7280', // Gray-500
+                        'dark-active-bg': '#4B5563', // Gray-600
+
+                        // Accent colors (can remain consistent or have dark variants)
+                        'accent-yellow': '#F59E0B', // Amber-500
+                    }
+                }
+            }
+        };
+    </script>
+</head>
+<body class="font-light bg-light-bg text-light-text dark:bg-dark-bg dark:text-dark-text font-sans flex flex-col h-screen overflow-hidden transition-colors duration-200">
+    <!-- Header -->
+    <header class="bg-light-secondary-bg dark:bg-dark-secondary-bg border-b border-light-border dark:border-dark-border text-light-text dark:text-dark-text p-3 flex justify-between items-center flex-shrink-0 rounded-b-none">
+        <div class="flex items-center">
+            <img src="https://www.operative.sh/favicon.ico?v=2" alt="Operative Favicon" class="h-6 w-6 mr-2 inline-block align-middle">
+            <h1 class="text-lg font-mono font-semibold">
+                <span class="font-sans"><a href="https://www.operative.sh" target="_blank" class="hover:underline">Operative Control Center</a></span>
+            </h1>
+            <span class="mx-2">|</span>
+            <h2 class="text-lg font-sans">Screenshots Gallery</h2>
+        </div>
+        <div class="flex items-center space-x-4">
+            <a href="/" class="bg-light-bg dark:bg-dark-bg hover:bg-light-hover-bg dark:hover:bg-dark-hover-bg text-light-text dark:text-dark-text text-xs border border-light-border dark:border-dark-border hover:border-light-hover-border dark:hover:border-dark-hover-border rounded-md px-3 py-1 transition-all duration-300">
+                Back to Dashboard
+            </a>
+            <button id="theme-toggle" type="button" class="text-light-secondary-text dark:text-dark-secondary-text hover:bg-light-hover-bg dark:hover:bg-dark-hover-bg focus:outline-none rounded-lg text-sm p-1.5">
+                <svg id="theme-toggle-dark-icon" class="hidden theme-icon" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+                <svg id="theme-toggle-light-icon" class="hidden theme-icon" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="container mx-auto px-4 flex-grow overflow-auto py-4">
+        <div class="mb-4">
+            <h3 class="text-xl font-semibold mb-2">Screenshots Gallery</h3>
+            <p class="text-light-secondary-text dark:text-dark-secondary-text mb-4">All screenshots from the current or most recent evaluation. Updates in real-time.</p>
+        </div>
+        
+        <!-- Screenshots Container -->
+        <div id="screenshots-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Screenshots will be added here dynamically -->
+            <div class="flex items-center justify-center h-48 bg-light-secondary-bg dark:bg-dark-secondary-bg border border-light-border dark:border-dark-border rounded-lg animate-pulse">
+                <span class="text-light-secondary-text dark:text-dark-secondary-text">Loading screenshots...</span>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // --- Theme Handling ---
+        const themeToggleDarkIcon = document.getElementById('theme-toggle-dark-icon');
+        const themeToggleLightIcon = document.getElementById('theme-toggle-light-icon');
+        const themeToggleButton = document.getElementById('theme-toggle');
+
+        // Function to apply the theme
+        function applyTheme(theme) {
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+                themeToggleLightIcon.classList.remove('hidden');
+                themeToggleDarkIcon.classList.add('hidden');
+                localStorage.setItem('color-theme', 'dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+                themeToggleDarkIcon.classList.remove('hidden');
+                themeToggleLightIcon.classList.add('hidden');
+                localStorage.setItem('color-theme', 'light');
+            }
+        }
+
+        // Determine initial theme on page load
+        const savedTheme = localStorage.getItem('color-theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+        if (savedTheme) {
+            applyTheme(savedTheme);
+        } else {
+            applyTheme(prefersDark ? 'dark' : 'light');
+        }
+
+        // Add listener for the theme toggle button
+        themeToggleButton.addEventListener('click', () => {
+            const currentTheme = localStorage.getItem('color-theme') || (prefersDark ? 'dark' : 'light');
+            applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+        });
+
+        // Socket.IO Connection
+        const socket = io();
+        const screenshotsContainer = document.getElementById('screenshots-container');
+        const tabId = Date.now().toString() + Math.random().toString(36).substring(2, 8);
+
+        // Register the dashboard tab
+        socket.on('connect', () => {
+            console.log('SocketIO connected! Socket ID:', socket.id);
+            socket.emit('register_dashboard_tab', { tabId: tabId });
+            
+            // Send heartbeat every 10 seconds
+            setInterval(() => {
+                socket.emit('dashboard_ping', { tabId: tabId });
+            }, 10000);
+        });
+
+        // Fetch existing screenshots on load
+        fetchScreenshots();
+        
+        // Handle new screenshots from socket
+        socket.on('screenshot_added', (payload) => {
+            if (payload && payload.data) {
+                // Add the new screenshot to the top
+                addScreenshotToGallery(payload.data, true);
+            }
+        });
+        
+        // Function to fetch existing screenshots
+        function fetchScreenshots() {
+            fetch('/get_screenshots')
+                .then(response => response.json())
+                .then(screenshots => {
+                    // Clear the loading placeholder
+                    screenshotsContainer.innerHTML = '';
+                    
+                    // Add each screenshot to the gallery
+                    if (screenshots.length === 0) {
+                        screenshotsContainer.innerHTML = `
+                            <div class="col-span-full flex items-center justify-center h-48 bg-light-secondary-bg dark:bg-dark-secondary-bg border border-light-border dark:border-dark-border rounded-lg">
+                                <span class="text-light-secondary-text dark:text-dark-secondary-text">No screenshots available. Run a web evaluation to capture screenshots.</span>
+                            </div>
+                        `;
+                    } else {
+                        screenshots.forEach(screenshot => {
+                            addScreenshotToGallery(screenshot, false);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching screenshots:', error);
+                    screenshotsContainer.innerHTML = `
+                        <div class="col-span-full flex items-center justify-center h-48 bg-light-secondary-bg dark:bg-dark-secondary-bg border border-light-border dark:border-dark-border rounded-lg">
+                            <span class="text-red-500">Error loading screenshots. Please refresh the page.</span>
+                        </div>
+                    `;
+                });
+        }
+        
+        // Function to add a screenshot to the gallery
+        function addScreenshotToGallery(imageDataUrl, isNew) {
+            // If this is the first screenshot, clear the container
+            if (screenshotsContainer.querySelector('.col-span-full')) {
+                screenshotsContainer.innerHTML = '';
+            }
+            
+            const screenshotDiv = document.createElement('div');
+            screenshotDiv.className = 'relative group overflow-hidden bg-light-secondary-bg dark:bg-dark-secondary-bg border border-light-border dark:border-dark-border rounded-lg shadow-sm';
+            
+            if (isNew) {
+                screenshotDiv.className += ' animate-pulse';
+                setTimeout(() => {
+                    screenshotDiv.classList.remove('animate-pulse');
+                }, 2000);
+            }
+            
+            const imgElement = document.createElement('img');
+            imgElement.src = imageDataUrl;
+            imgElement.alt = 'Screenshot';
+            imgElement.className = 'w-full h-auto object-contain cursor-pointer';
+            imgElement.loading = 'lazy';
+            
+            // Add click event to open the full image in a new tab
+            imgElement.addEventListener('click', () => {
+                window.open(imageDataUrl, '_blank');
+            });
+            
+            screenshotDiv.appendChild(imgElement);
+            
+            // Add a view full-size button
+            const viewButton = document.createElement('div');
+            viewButton.className = 'absolute bottom-0 left-0 right-0 p-2 bg-opacity-75 bg-gray-900 text-white text-center text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-200';
+            viewButton.innerHTML = 'Click to view full size';
+            screenshotDiv.appendChild(viewButton);
+            
+            // Add to the top if it's new
+            if (isNew) {
+                screenshotsContainer.insertBefore(screenshotDiv, screenshotsContainer.firstChild);
+            } else {
+                screenshotsContainer.appendChild(screenshotDiv);
+            }
+        }
+    </script>
+</body>
+</html> 

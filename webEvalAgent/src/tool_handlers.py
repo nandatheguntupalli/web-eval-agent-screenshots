@@ -19,7 +19,7 @@ from webEvalAgent.src.browser_utils import run_browser_task, console_log_storage
 # Import your prompt function
 from webEvalAgent.src.prompts import get_web_evaluation_prompt
 # Import log server functions directly
-from .log_server import send_log, start_log_server, open_log_dashboard, set_url_and_task
+from .log_server import send_log, start_log_server, open_log_dashboard, set_url_and_task, send_browser_view
 # For sleep
 import asyncio
 import time  # Ensure time is imported at the top level
@@ -166,7 +166,12 @@ async def handle_web_evaluation(arguments: Dict[str, Any], ctx: Context, api_key
     
     # Return a better formatted message to the MCP user
     # Including a reference to the dashboard for detailed logs
-    confirmation_text = f"{formatted_result}\n\n👁️ See the 'Operative Control Center' dashboard for detailed live logs.\nWeb Evaluation completed!"
+    import os
+    custom_host = os.environ.get('OPERATIVE_DASHBOARD_HOST', '127.0.0.1')
+    dashboard_url = f'http://{custom_host}:5009'
+    screenshots_url = f'{dashboard_url}/screenshots'
+    
+    confirmation_text = f"{formatted_result}\n\n👁️ See the 'Operative Control Center' dashboard for detailed live logs.\n📸 View all screenshots at {screenshots_url}\nWeb Evaluation completed!"
     send_log(f"Web evaluation task completed for {url}.", status_emoji) # Also send confirmation to dashboard
     
     # Log final screenshot count before constructing response
@@ -180,6 +185,21 @@ async def handle_web_evaluation(arguments: Dict[str, Any], ctx: Context, api_key
         if 'screenshot' in screenshot_data and screenshot_data['screenshot']:
             b64_length = len(screenshot_data['screenshot'])
             send_log(f"Adding screenshot {i+1} to response ({b64_length} chars)", "➕")
+            
+            # Also send to the dashboard
+            try:
+                screenshot_base64 = screenshot_data['screenshot']
+                screenshot_data_url = f"data:image/jpeg;base64,{screenshot_base64}"
+                send_log(f"Sending final screenshot {i+1} to dashboard", "🖼️")
+                # Use asyncio.run to handle the async call
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(send_browser_view(screenshot_data_url))
+                else:
+                    asyncio.run(send_browser_view(screenshot_data_url))
+            except Exception as e:
+                send_log(f"Error sending screenshot to dashboard: {e}", "❌")
+            
             response.append(ImageContent(
                 type="image",
                 data=screenshot_data["screenshot"],
@@ -701,6 +721,33 @@ async def handle_setup_browser_state(arguments: Dict[str, Any], ctx: Context, ap
         await page.goto(url)
         send_log(f"🔗 Navigated to: {url}", "🔗")
         
+        # Set up periodic screenshots to send to the dashboard
+        screenshot_task = None
+        async def take_and_send_screenshots():
+            try:
+                while True:
+                    if page.is_closed():
+                        break
+                    try:
+                        # Take screenshot
+                        screenshot_bytes = await page.screenshot(type='jpeg', quality=80)
+                        screenshot_base64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+                        screenshot_data_url = f"data:image/jpeg;base64,{screenshot_base64}"
+                        
+                        # Send to dashboard
+                        await send_browser_view(screenshot_data_url)
+                    except Exception as e:
+                        send_log(f"Error taking periodic screenshot: {e}", "⚠️")
+                    
+                    # Wait before taking the next screenshot
+                    await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                send_log("Screenshot task cancelled", "🛑")
+            except Exception as e:
+                send_log(f"Screenshot task error: {e}", "❌")
+                
+        screenshot_task = asyncio.create_task(take_and_send_screenshots())
+        
         send_log("Waiting for user interaction (close browser tab or 180s timeout)...", "🖱️")
         
         # Set up an event listener for page close
@@ -749,6 +796,16 @@ async def handle_setup_browser_state(arguments: Dict[str, Any], ctx: Context, ap
             text=f"❌ Failed to save browser state: {e}"
         )]
     finally:
+        # Cancel screenshot task if running
+        if 'screenshot_task' in locals() and screenshot_task:
+            screenshot_task.cancel()
+            try:
+                await screenshot_task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                pass
+                
         # Close resources in reverse order
         if page:
             try: await page.close()

@@ -113,14 +113,14 @@ We're refining this, please open an issue if you have any issues!
 
 🔍 Agent Steps
   📍 1. Navigate → http://localhost:5173
-  📍 2. Click     “Login”        (button index 2)
-  📍 3. Click     “API Keys”     (button index 4)
-  📍 4. Click     “Create Key”   (button index 9)
-  📍 5. Type      “Test API Key” (input index 2)
-  📍 6. Click     “Done”         (button index 3)
-  📍 7. Click     “Delete”       (button index 10)
-  📍 8. Click     “Delete”       (confirm index 3)
-  🏁 Flow tested successfully – UX felt smooth and intuitive.
+  📍 2. Click     "Login"        (button index 2)
+  📍 3. Click     "API Keys"     (button index 4)
+  📍 4. Click     "Create Key"   (button index 9)
+  📍 5. Type      "Test API Key" (input index 2)
+  📍 6. Click     "Done"         (button index 3)
+  📍 7. Click     "Delete"       (button index 10)
+  📍 8. Click     "Delete"       (confirm index 3)
+🏁 Flow tested successfully – UX felt smooth and intuitive.
 
 🖥️ Console Logs (10)
   1. [debug] [vite] connecting…
@@ -141,8 +141,10 @@ We're refining this, please open an issue if you have any issues!
      …
   01:17:45.038 🤖 🏁 Flow finished – deletion verified
   01:17:47.038 🤖 📋 Conclusion repeated above
-👁️  See the “Operative Control Center” dashboard for live logs.
+👁️  See the "Operative Control Center" dashboard for live logs.
 ```
+
+> **Note:** The Operative Control Center dashboard (available at http://127.0.0.1:5009 by default) now shows live screenshots of web evaluation actions as they happen. This makes it easier to monitor and debug your web application testing in real-time.
 
 ## Star History
 
