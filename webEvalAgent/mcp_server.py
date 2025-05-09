@@ -518,9 +518,8 @@ def main():
             send_log(f"{RED}{BOLD}⚠️ IMPORTANT: Please restart Cursor for these changes to take effect!{NC}", "⚠️")
             return
         else:
-            # We're running in server mode - update MCP config with API key if needed
-            # This updates the key if it's changed since last run
-            cursor_mcp_file, _ = _configure_cursor_mcp_json(agent_project_path, operative_key)
+            # We're running in server mode - don't update MCP config as it's already configured
+            send_log(f"{BOLD}Found existing configuration. Using current settings.{NC}", "📝")
             
             send_log(f"{BOLD}API key validated. Starting MCP server...{NC}", "🛰️")
             # Run the FastMCP server
