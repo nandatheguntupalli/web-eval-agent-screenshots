@@ -142,35 +142,39 @@ def send_log(message: str, emoji: str = "➡️", log_type: str = 'agent'):
 
 # --- Browser View Update Function ---
 async def send_browser_view(image_data_url: str):
-    """Sends the browser view image data URL to all connected clients."""
-    # This function is async because it might be called from the asyncio loop
-    # in browser_manager. However, socketio.emit needs to be called carefully
-    # when interacting between asyncio and other threads (like Flask's).
-    # socketio.emit is generally thread-safe, but ensure the event loop is handled.
-    
-    # Check if the data URL is valid
+    """Sends the browser view image data URL to all connected clients for LIVE VIEW.
+       This does NOT update the persistent screenshot gallery.
+    """
     if not image_data_url or not image_data_url.startswith("data:image/"):
         return
     
-    # Mark the screencast as running when we receive a browser view update
     try:
         from .browser_utils import set_screencast_running
         set_screencast_running(True)
     except ImportError:
-        pass
+        pass # Fine if browser_utils is not available in all contexts
     except Exception:
         pass
-    
-    # Store the screenshot for the screenshots page
-    global stored_screenshots
-    # Store the most recent 20 screenshots to avoid using too much memory
-    stored_screenshots = [image_data_url] + stored_screenshots[:19]
         
     try:
         socketio.emit('browser_update', {'data': image_data_url})
-        socketio.emit('screenshot_added', {'data': image_data_url})
     except Exception:
-        pass
+        pass # Log server might not be fully up
+
+def set_gallery_screenshots(screenshot_data_urls: list[str]):
+    """Sets the screenshots for the gallery page and notifies clients.
+    Args:
+        screenshot_data_urls: A list of base64 data URLs for the screenshots.
+    """
+    global stored_screenshots
+    # Limit stored screenshots to, for example, the last 50 to save memory
+    # The MCP response will have its own limits, this is for the gallery page.
+    stored_screenshots = screenshot_data_urls[-50:] 
+    try:
+        socketio.emit('gallery_updated', {})
+        send_log(f"Screenshot gallery updated with {len(stored_screenshots)} images.", "🖼️", log_type='status')
+    except Exception:
+        pass # Log server might not be fully up
 
 # --- Agent Control Handler ---
 @socketio.on('agent_control')

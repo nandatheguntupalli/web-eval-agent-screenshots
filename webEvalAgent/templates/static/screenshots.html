@@ -137,12 +137,10 @@
         // Fetch existing screenshots on load
         fetchScreenshots();
         
-        // Handle new screenshots from socket
-        socket.on('screenshot_added', (payload) => {
-            if (payload && payload.data) {
-                // Add the new screenshot to the top
-                addScreenshotToGallery(payload.data, true);
-            }
+        // Handle gallery updates from socket
+        socket.on('gallery_updated', () => {
+            console.log('Received gallery_updated event. Refreshing screenshots...');
+            fetchScreenshots();
         });
         
         // Function to fetch existing screenshots
@@ -150,7 +148,7 @@
             fetch('/get_screenshots')
                 .then(response => response.json())
                 .then(screenshots => {
-                    // Clear the loading placeholder
+                    // Clear the loading placeholder and any existing screenshots
                     screenshotsContainer.innerHTML = '';
                     
                     // Add each screenshot to the gallery
@@ -161,8 +159,10 @@
                             </div>
                         `;
                     } else {
-                        screenshots.forEach(screenshot => {
-                            addScreenshotToGallery(screenshot, false);
+                        // Screenshots are now sent in the correct order from the server (most recent first if desired, or step order)
+                        // The server stores them as a list, and `forEach` here will process them in that order.
+                        screenshots.forEach(screenshot_url => { // Assuming server sends a list of URLs
+                            addScreenshotToGallery(screenshot_url);
                         });
                     }
                 })
@@ -177,47 +177,28 @@
         }
         
         // Function to add a screenshot to the gallery
-        function addScreenshotToGallery(imageDataUrl, isNew) {
-            // If this is the first screenshot, clear the container
-            if (screenshotsContainer.querySelector('.col-span-full')) {
-                screenshotsContainer.innerHTML = '';
-            }
-            
+        function addScreenshotToGallery(imageDataUrl) { 
             const screenshotDiv = document.createElement('div');
             screenshotDiv.className = 'relative group overflow-hidden bg-light-secondary-bg dark:bg-dark-secondary-bg border border-light-border dark:border-dark-border rounded-lg shadow-sm';
-            
-            if (isNew) {
-                screenshotDiv.className += ' animate-pulse';
-                setTimeout(() => {
-                    screenshotDiv.classList.remove('animate-pulse');
-                }, 2000);
-            }
             
             const imgElement = document.createElement('img');
             imgElement.src = imageDataUrl;
             imgElement.alt = 'Screenshot';
             imgElement.className = 'w-full h-auto object-contain cursor-pointer';
-            imgElement.loading = 'lazy';
+            imgElement.loading = 'lazy'; // Lazy load images
             
-            // Add click event to open the full image in a new tab
             imgElement.addEventListener('click', () => {
                 window.open(imageDataUrl, '_blank');
             });
             
             screenshotDiv.appendChild(imgElement);
             
-            // Add a view full-size button
             const viewButton = document.createElement('div');
             viewButton.className = 'absolute bottom-0 left-0 right-0 p-2 bg-opacity-75 bg-gray-900 text-white text-center text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-200';
             viewButton.innerHTML = 'Click to view full size';
             screenshotDiv.appendChild(viewButton);
             
-            // Add to the top if it's new
-            if (isNew) {
-                screenshotsContainer.insertBefore(screenshotDiv, screenshotsContainer.firstChild);
-            } else {
-                screenshotsContainer.appendChild(screenshotDiv);
-            }
+            screenshotsContainer.appendChild(screenshotDiv);
         }
     </script>
 </body>

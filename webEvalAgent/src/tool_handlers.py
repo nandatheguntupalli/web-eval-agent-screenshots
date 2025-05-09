@@ -19,7 +19,7 @@ from webEvalAgent.src.browser_utils import run_browser_task, console_log_storage
 # Import your prompt function
 from webEvalAgent.src.prompts import get_web_evaluation_prompt
 # Import log server functions directly
-from .log_server import send_log, start_log_server, open_log_dashboard, set_url_and_task, send_browser_view
+from .log_server import send_log, start_log_server, open_log_dashboard, set_url_and_task, send_browser_view, set_gallery_screenshots
 # For sleep
 import asyncio
 import time  # Ensure time is imported at the top level
@@ -174,31 +174,29 @@ async def handle_web_evaluation(arguments: Dict[str, Any], ctx: Context, api_key
     confirmation_text = f"{formatted_result}\n\n👁️ See the 'Operative Control Center' dashboard for detailed live logs.\n📸 View all screenshots at {screenshots_url}\nWeb Evaluation completed!"
     send_log(f"Web evaluation task completed for {url}.", status_emoji) # Also send confirmation to dashboard
     
+    # Prepare screenshots for the gallery
+    gallery_screenshot_data_urls = []
+    if screenshots: # Ensure screenshots is not None and not empty
+        gallery_screenshot_data_urls = [s_data['screenshot'] for s_data in screenshots if s_data and isinstance(s_data, dict) and s_data.get('screenshot')]
+        try:
+            set_gallery_screenshots(gallery_screenshot_data_urls)
+        except Exception as e:
+            send_log(f"Error updating screenshot gallery: {e}", "❌")
+
     # Log final screenshot count before constructing response
-    send_log(f"Constructing final response with {len(screenshots)} screenshots", "🧩")
+    send_log(f"Constructing final response with {len(screenshots)} screenshots for MCP.", "🧩")
     
     # Create the final response structure
     response = [TextContent(type="text", text=confirmation_text)]
     
-    # Debug the screenshot data structure one last time before adding to response
-    for i, screenshot_data in enumerate(screenshots[1:]):
-        if 'screenshot' in screenshot_data and screenshot_data['screenshot']:
+    # Add all captured screenshots to the MCP response
+    # The user's log indicated "Adding screenshot 1...", so we iterate from the start.
+    for i, screenshot_data in enumerate(screenshots):
+        if screenshot_data and isinstance(screenshot_data, dict) and 'screenshot' in screenshot_data and screenshot_data['screenshot']:
             b64_length = len(screenshot_data['screenshot'])
-            send_log(f"Adding screenshot {i+1} to response ({b64_length} chars)", "➕")
+            send_log(f"Adding screenshot {i+1} to MCP response ({b64_length} chars).", "➕")
             
-            # Also send to the dashboard
-            try:
-                screenshot_base64 = screenshot_data['screenshot']
-                screenshot_data_url = f"data:image/jpeg;base64,{screenshot_base64}"
-                send_log(f"Sending final screenshot {i+1} to dashboard", "🖼️")
-                # Use asyncio.run to handle the async call
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    asyncio.create_task(send_browser_view(screenshot_data_url))
-                else:
-                    asyncio.run(send_browser_view(screenshot_data_url))
-            except Exception as e:
-                send_log(f"Error sending screenshot to dashboard: {e}", "❌")
+            # No longer need to send to dashboard here, gallery is updated separately
             
             response.append(ImageContent(
                 type="image",
@@ -206,7 +204,7 @@ async def handle_web_evaluation(arguments: Dict[str, Any], ctx: Context, api_key
                 mimeType="image/jpeg"
             ))
         else:
-            send_log(f"Screenshot {i+1} can't be added to response - missing data!", "❌")
+            send_log(f"Screenshot {i+1} for MCP response is invalid or missing data! Keys: {list(screenshot_data.keys()) if isinstance(screenshot_data, dict) else 'Not a dict'}", "❌")
     
     send_log(f"Final response contains {len(response)} items ({len(response)-1} images)", "📦")
     
