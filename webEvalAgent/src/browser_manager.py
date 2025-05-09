@@ -261,71 +261,6 @@ class PlaywrightBrowserManager:
              except Exception:
                  pass
 
-    async def get_console_logs(self, last_n: int) -> List[Dict]:
-        """Get console logs collected so far with deduplication of repeated messages."""
-        if not self.console_logs:
-            return []
-            
-        # Create a deduplicated version of the logs
-        deduplicated_logs = []
-        current_group = None
-        
-        # Sort logs by timestamp to ensure proper grouping
-        sorted_logs = sorted(self.console_logs, key=lambda x: x.get('timestamp', 0))
-        
-        for log in sorted_logs:
-            # If we have no current group or this log is different from the current group
-            if (current_group is None or 
-                log['type'] != current_group['type'] or 
-                log['text'] != current_group['text']):
-                
-                # Start a new group
-                current_group = {
-                    'type': log['type'],
-                    'text': log['text'],
-                    'location': log['location'],
-                    'timestamp': log['timestamp'],
-                    'count': 1,
-                    'timestamps': [log['timestamp']]
-                }
-                deduplicated_logs.append(current_group)
-            else:
-                # This is a repeated message, increment count and add timestamp
-                current_group['count'] += 1
-                current_group['timestamps'].append(log['timestamp'])
-                # Update the text to show repetition count for repeated messages
-                if current_group['count'] > 1:
-                    current_group['text'] = f"{log['text']} (repeated {current_group['count']} times)"
-        
-        # Return only the last N entries
-        # Sort by timestamp (descending) to get the most recent logs first
-        deduplicated_logs.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
-        deduplicated_logs = deduplicated_logs[:last_n]
-        # Sort back by timestamp (ascending) for consistent output
-        deduplicated_logs.sort(key=lambda x: x.get('timestamp', 0))
-        
-        return deduplicated_logs
-
-    async def get_network_requests(self, last_n: int) -> List[Dict]:
-        """Get network requests collected so far."""
-        if not self.network_requests:
-            return []
-            
-        # Sort by timestamp (descending) to get the most recent requests first
-        sorted_requests = sorted(self.network_requests, key=lambda x: x.get('timestamp', 0), reverse=True)
-        # Take only the last N entries
-        limited_requests = sorted_requests[:last_n]
-        # Sort back by timestamp (ascending) for consistent output
-        limited_requests.sort(key=lambda x: x.get('timestamp', 0))
-        
-        return limited_requests
-        
-    def get_browser(self):
-        """Get the browser instance to pass to the Agent."""
-        if not self.is_initialized:
-            raise RuntimeError("Browser manager not initialized. Call initialize() first.")
-        return self.browser
-
     # --- CDP Screencast Handling ---
     async def _handle_screencast_frame(self, params: Dict) -> None:
         """Handle incoming screencast frames from CDP."""
@@ -373,7 +308,8 @@ class PlaywrightBrowserManager:
             send_log(f"Input error: Screencast not running", "❌", log_type='status')
             return
 
-        send_log(f"Processing input: {event_type}", "🔄", log_type='status')
+        if event_type != 'scroll':
+            send_log(f"Processing input: {event_type}", "🔄", log_type='status')
 
         try:
             if event_type == 'click':

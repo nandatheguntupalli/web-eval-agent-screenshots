@@ -209,10 +209,22 @@
         <!-- Browser View Column -->
         <div class="browser-column bg-light-secondary-bg dark:bg-dark-secondary-bg border border-light-border dark:border-dark-border rounded-lg flex flex-col overflow-hidden h-full shadow-sm">
              <div class="log-header bg-light-secondary-bg dark:bg-dark-secondary-bg border-b border-light-border dark:border-dark-border p-2 flex justify-between items-center text-sm font-medium flex-shrink-0 rounded-t-lg">
-                <h2 class="text-light-secondary-text dark:text-dark-secondary-text font-semibold">🌐 Browser View</h2> <!-- Slightly darker text for header -->
+                <h2 class="text-light-secondary-text dark:text-dark-secondary-text font-semibold">🌐 Browser Agent View (Interactive)</h2> <!-- Slightly darker text for header -->
+            </div>
+            <div class="bg-light-secondary-bg dark:bg-dark-secondary-bg px-3 py-2 border-t border-light-border dark:border-dark-border">
+                <div id="url-task-info" class="text-xs font-mono">
+                    <div id="current-url" class="truncate">
+                        <span class="text-light-secondary-text dark:text-dark-secondary-text font-semibold">URL:</span>
+                        <a id="url-display" href="#" target="_blank" class="text-light-text dark:text-dark-text hover:underline"></a>
+                    </div>
+                    <div id="current-task" class="truncate">
+                        <span class="text-light-secondary-text dark:text-dark-secondary-text font-semibold">Task:</span>
+                        <span id="task-display" class="text-light-text dark:text-dark-text"></span>
+                    </div>
+                </div>
             </div>
             <div id="browser-view-container" class="flex-grow overflow-auto p-1 bg-light-secondary-bg dark:bg-dark-secondary-bg flex items-center justify-center rounded-b-lg">
-                 <img id="browser-view-img" src="" alt="Browser View" class="max-w-full max-h-full object-contain border border-light-border dark:border-dark-border cursor-crosshair shadow-inner rounded-md" tabindex="0"/>
+                 <img id="browser-view-img" src="" alt="Browser Agent View (Interative)" class="max-w-full max-h-full object-contain border border-light-border dark:border-dark-border cursor-crosshair shadow-inner rounded-md" tabindex="0"/>
             </div>
         </div>
 
@@ -309,6 +321,8 @@
         const networkLogEl = document.getElementById('network-log-container');
         const browserViewImg = document.getElementById('browser-view-img');
         const browserColumnEl = document.querySelector('.browser-column'); // Get browser column element
+        const urlDisplayEl = document.getElementById('url-display');
+        const taskDisplayEl = document.getElementById('task-display');
 
         console.log('Browser view image element:', browserViewImg ? 'Found' : 'Not found');
 
@@ -537,10 +551,42 @@
             }
         });
 
+        // Fetch URL and task information from the server
+        function fetchUrlAndTask() {
+            fetch('/get_url_task')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok: ' + response.statusText);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    
+                    // Update the URL display
+                    if (urlDisplayEl && data.url) {
+                        urlDisplayEl.textContent = data.url || '';
+                    }
+                    
+                    // Update the task display
+                    if (taskDisplayEl && data.task) {
+                        taskDisplayEl.textContent = data.task || '';
+                    }
+                })
+                .catch(error => {
+                    console.error("Error fetching URL/task:", error);
+                });
+        }
+
         // Register this tab with server and handle refresh requests
         document.addEventListener('DOMContentLoaded', function() {
             // Tell server this tab is active
             socket.emit('register_dashboard_tab', { tabId: tabId });
+            
+            // Fetch URL and task data initially
+            fetchUrlAndTask();
+            
+            // Set up periodic refresh of URL and task data
+            setInterval(fetchUrlAndTask, 5000); // Refresh every 5 seconds
             
             // Listen for refresh requests
             socket.on('refresh_dashboard', function(data) {
@@ -558,6 +604,8 @@
             document.addEventListener('visibilitychange', function() {
                 if (document.visibilityState === 'visible') {
                     socket.emit('dashboard_visible', { tabId: tabId });
+                    // Also refresh URL and task when tab becomes visible
+                    fetchUrlAndTask();
                 }
             });
         });

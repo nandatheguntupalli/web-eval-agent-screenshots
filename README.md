@@ -23,11 +23,11 @@
  - brew: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
  - npm: (`brew install npm`)
  - jq: `brew install jq` 
-3. Run the installer after [getting an api key (free)](https://www.operative.sh) 
+2. Run the installer after [getting an api key (free)](https://www.operative.sh)
+   - Installs [playwright](https://github.com/microsoft/playwright) 
+   - [Installs uv](https://astral.sh/)
+   - Inserts JSON into your code editor (Cursor/Cline/Windsurf) for you! 
 ```bash
-# Feel welcome to inspect the installer script like so:
-# curl -LSf https://operative.sh/install.sh | less -N
-# Download, install, and remove the installer script
 curl -LSf https://operative.sh/install.sh -o install.sh && bash install.sh && rm install.sh
 ```
 3. Visit your favorite IDE and restart to apply the changes
@@ -39,10 +39,13 @@ Test my app on http://localhost:3000. Use web-eval-agent.
 ## 🛠️ Manual Installation
 1. Get your API key at operative.sh
 2. [Install uv](https://docs.astral.sh/uv/#highlights)
+
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh)
 ```
+
 4. Install playwright:
+
 ```bash
 npm install -g chromium playwright && uvx --with playwright playwright install --with-deps
 ```
@@ -70,10 +73,33 @@ npm install -g chromium playwright && uvx --with playwright playwright install -
 ```
 ## [Operative Discord Server](https://discord.gg/ryjCnf9myb)
 
+## 🛠️ Manual Installation (Mac + Cursor/Cline/Windsurf) 
+1. Get your API key at operative.sh
+2. [Install uv](https://docs.astral.sh/uv/#highlights)
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh)
+```
+3. Install playwright:
+```bash
+npm install -g chromium playwright && uvx --with playwright playwright install --with-deps
+```
+4. Add below JSON to your relevant code editor with api key 
+5. Restart your code editor
+
+## Manual Installation (Windows + Cursor/Cline/Windsurf)  
+
+We're refining this, please open an issue if you have any issues! 
+1. Do all this in your code editor terminal 
+2. `curl -LSf https://operative.sh/install.sh -o install.sh && bash install.sh && rm install.sh`
+3. Get your API key at operative.sh
+4. Install uv `(curl -LsSf https://astral.sh/uv/install.sh | sh)`
+5. `uvx --from git+https://github.com/Operative-Sh/web-eval-agent.git playwright install`
+6. Restart code editor 
+
 
 ## 🚨 Issues 
 - Updates aren't being received in code editors, update or reinstall for latest version: Run `uv cache clean` for latest 
-- Any issues feel free to open an Issue on this repo!
+- Any issues feel free to open an Issue on this repo or in the discord!
 - 5/5 - static apps without changes weren't screencasting, fixed! `uv clean` + restart to get fix
 
 ## Changelog 

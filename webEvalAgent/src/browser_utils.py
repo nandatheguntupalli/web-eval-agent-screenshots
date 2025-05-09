@@ -7,6 +7,7 @@ import logging
 import uuid
 import warnings
 import base64
+import os
 from contextlib import redirect_stdout, redirect_stderr
 from typing import Dict, Any, Tuple, List, Optional
 from collections import deque
@@ -46,9 +47,10 @@ original_create_context: Optional[callable] = None  # Store original patched met
 active_cdp_session = None  # Store active CDP session for input handling
 active_screencast_running = False  # Track if screencast is running
 browser_task_loop = None  # Store the asyncio loop used by run_browser_task
+screenshot_task = None  # Store the periodic screenshot task
 
 # Define the maximum number of logs/requests to keep
-MAX_LOG_ENTRIES = 10
+MAX_LOG_ENTRIES = 1000  # Increased from 10 to allow more log entries
 
 # --- URL Filtering for Network Requests ---
 def should_log_network_request(request) -> bool:
@@ -381,7 +383,8 @@ async def handle_browser_input(event_type: str, details: Dict) -> None:
     """
     global active_cdp_session, active_screencast_running
     
-    send_log(f"handle_browser_input called with event_type: {event_type}", "🔍", log_type='status')
+    if event_type != 'scroll':
+        send_log(f"handle_browser_input called with event_type: {event_type}", "🔍", log_type='status')
     
     # Check if we have an active CDP session
     if not active_cdp_session:
@@ -393,7 +396,8 @@ async def handle_browser_input(event_type: str, details: Dict) -> None:
         send_log(f"Input error: Screencast not running", "❌", log_type='status')
         return
 
-    send_log(f"Processing input: {event_type}", "🔄", log_type='status')
+    if event_type != 'scroll':
+        send_log(f"Processing input: {event_type}", "🔄", log_type='status')
 
     try:
         if event_type == 'click':
@@ -567,8 +571,19 @@ def set_screencast_running(running: bool = True) -> None:
     global active_screencast_running
     active_screencast_running = running
 
-async def run_browser_task(task: str, model: str = "gemini-2.0-flash-001", ctx: Context = None, tool_call_id: str = None, api_key: str = None, headless: bool = True) -> Dict[str, Any]:
-    global browser_task_loop
+# Helper function to get persisted browser state
+def _get_persisted_state() -> Optional[str]:
+    """
+    Check for and return the path to persisted browser state if it exists.
+    
+    Returns:
+        Optional[str]: Path to the state file if it exists, None otherwise
+    """
+    state_file = os.path.expanduser("~/.operative/browser_state/state.json")
+    return state_file if os.path.exists(state_file) else None
+
+async def run_browser_task(task: str, tool_call_id: str = None, api_key: str = None, headless: bool = True) -> Dict[str, Any]:
+    global browser_task_loop, screenshot_task
     # Store the current asyncio loop for input handling
     browser_task_loop = asyncio.get_running_loop()
     """
@@ -576,8 +591,6 @@ async def run_browser_task(task: str, model: str = "gemini-2.0-flash-001", ctx: 
 
     Args:
         task: The task to run.
-        model: The model identifier (not directly used for LLM here, taken from ChatAnthropic).
-        ctx: The MCP context for progress reporting.
         tool_call_id: The tool call ID for API headers.
         api_key: The API key for authentication.
 
@@ -629,6 +642,11 @@ async def run_browser_task(task: str, model: str = "gemini-2.0-flash-001", ctx: 
         # Get the CDP URL from the browser
         send_log(f"Playwright initialized for task with CDP (headless={headless}).", "🎭", log_type='status') # Type: status
 
+        # --- Check for persisted browser state ---
+        persisted_state = _get_persisted_state()
+        if persisted_state:
+            send_log(f"Loading persisted browser state from {persisted_state}", "💾", log_type='status')
+        
         # --- Create browser-use Browser ---
         browser_config = BrowserConfig(disable_security=True, headless=headless, cdp_url="http://127.0.0.1:9222")
         agent_browser = Browser(config=browser_config)
@@ -640,7 +658,9 @@ async def run_browser_task(task: str, model: str = "gemini-2.0-flash-001", ctx: 
         # Detailed logging and error handling for each step
         try:
             # Create a context and page as recommended
-            context = await playwright_browser.new_context()
+            context = await playwright_browser.new_context(
+                storage_state=persisted_state
+            )
             first_page = await context.new_page()
             
             # Create a CDP session for the page
@@ -717,6 +737,48 @@ async def run_browser_task(task: str, model: str = "gemini-2.0-flash-001", ctx: 
                 import traceback
             
             send_log("CDP screencast started for browser-use browser.", "📹", log_type='status')
+            
+            # Define the periodic screenshot capture function
+            async def capture_screenshots(page, interval=1/30):
+                """Capture screenshots at the specified interval in seconds (30 FPS)."""
+                global active_screencast_running
+                send_log("Starting periodic screenshot capture at 30 FPS", "🎬", log_type='status')
+                try:
+                    while active_screencast_running:
+                        try:
+                            # Take a screenshot
+                            screenshot_bytes = await page.screenshot(type='jpeg', quality=80)
+                            
+                            # Convert to base64
+                            screenshot_b64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+                            
+                            # Format as data URL
+                            screenshot_data_url = f"data:image/jpeg;base64,{screenshot_b64}"
+                            
+                            # Send to frontend
+                            from .log_server import send_browser_view
+                            await send_browser_view(screenshot_data_url)
+                            
+                        except Exception as e:
+                            if not active_screencast_running:
+                                break
+                            # Don't log every error to avoid spamming
+                            if "Target closed" in str(e) or "Session closed" in str(e) or "Connection closed" in str(e):
+                                active_screencast_running = False
+                                break
+                        
+                        # Wait for the next interval
+                        await asyncio.sleep(interval)
+                except asyncio.CancelledError:
+                    send_log("Periodic screenshot capture stopped", "🛑", log_type='status')
+                except Exception as e:
+                    send_log(f"Screenshot capture error: {e}", "❌", log_type='status')
+            
+            # Start the screenshot capture task
+            active_screencast_running = True
+            if headless:
+                screenshot_task = asyncio.create_task(capture_screenshots(first_page))
+            
         except Exception as e:
             send_log(f"Failed to start CDP screencast: {e}", "❌", log_type='status')
             import traceback
@@ -734,7 +796,28 @@ async def run_browser_task(task: str, model: str = "gemini-2.0-flash-001", ctx: 
             if original_create_context is None:
                  raise RuntimeError("Original _create_context not stored correctly")
 
+            # Check for persisted browser state
+            persisted_state = _get_persisted_state()
+            if persisted_state:
+                send_log(f"Loading persisted browser state in new context", "💾", log_type='status')
+            
+            # Call the original method but with storage_state if available
             raw_playwright_context = await original_create_context(self, browser_pw)
+            
+            # Apply storage state after context creation if available
+            if persisted_state and raw_playwright_context:
+                try:
+                    with open(persisted_state, 'r') as f:
+                        state_data = json.load(f)
+                    
+                    # Load cookies and localStorage from state
+                    if 'cookies' in state_data:
+                        await raw_playwright_context.add_cookies(state_data['cookies'])
+                    
+                    # Origins with storage set is already handled by Playwright internally
+                    send_log(f"Applied persisted browser state to context", "💾", log_type='status')
+                except Exception as e:
+                    send_log(f"Failed to apply persisted state to context: {e}", "⚠️", log_type='status')
 
             if raw_playwright_context:
                 # Use the non-async wrapper functions for event listeners
@@ -799,6 +882,9 @@ async def run_browser_task(task: str, model: str = "gemini-2.0-flash-001", ctx: 
                         screenshot_bytes = await current_page.screenshot(type='jpeg', quality=80)
                         screenshot_base64 = base64.b64encode(screenshot_bytes).decode('utf-8')
                         
+                        # Log screenshot size for debugging
+                        send_log(f"Screenshot captured: {len(screenshot_bytes)} bytes, {len(screenshot_base64)} base64 chars", "📊", log_type='status')
+                        
                         # Store screenshot with metadata
                         screenshot_storage.append({
                             'step': step_number,
@@ -807,7 +893,7 @@ async def run_browser_task(task: str, model: str = "gemini-2.0-flash-001", ctx: 
                             'screenshot': screenshot_base64
                         })
                         
-                        send_log(f"Screenshot captured for step {step_number}", "📸", log_type='status')
+                        send_log(f"Screenshot stored in storage (total: {len(screenshot_storage)})", "📸", log_type='status')
                         
                         # Re-inject the overlay
                         send_log(f"Re-injecting overlay after step {step_number} into page {current_page.url}", "🔄", log_type='status')
@@ -843,6 +929,14 @@ async def run_browser_task(task: str, model: str = "gemini-2.0-flash-001", ctx: 
         # Convert AgentHistoryList to a serializable format (just stringify)
         serialized_result = str(agent_result)
 
+        # Log information about screenshots before returning
+        send_log(f"Returning {len(screenshot_storage)} screenshots from run_browser_task", "📸", log_type='status')
+        if screenshot_storage:
+            for i, screenshot in enumerate(screenshot_storage):
+                send_log(f"Screenshot {i+1}: Step {screenshot['step']}, {len(screenshot['screenshot'])} base64 chars", "🔢", log_type='status')
+        else:
+            send_log("No screenshots captured during task execution!", "⚠️", log_type='status')
+
         # Return the agent result and screenshots
         return {
             "result": serialized_result,
@@ -858,6 +952,16 @@ async def run_browser_task(task: str, model: str = "gemini-2.0-flash-001", ctx: 
         }
     finally:
         # --- Cleanup ---
+        # Cancel the screenshot task if it's running
+        if screenshot_task:
+            screenshot_task.cancel()
+            try:
+                await screenshot_task
+            except asyncio.CancelledError:
+                pass
+            screenshot_task = None
+            send_log("Periodic screenshot task canceled", "🧹", log_type='status')
+        
         # Restore the original bring_to_front method
         if _original_bring_to_front:
             PlaywrightPage.bring_to_front = _original_bring_to_front

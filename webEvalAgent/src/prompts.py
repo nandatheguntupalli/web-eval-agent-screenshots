@@ -11,13 +11,16 @@ def get_web_evaluation_prompt(url: str, task: str) -> str:
     Returns:
         str: The formatted evaluation prompt
     """
-    return f"""VISIT: {url} AND YOUR MAIN GOAL IS: {task}
+    return f"""VISIT: {url}
+GOAL: {task}
 
-Evaluate the UI / UX of the website. If you encounter any errors during your evaluation
-(e.g., connection issues, page not loading, JavaScript errors), immediately stop the evaluation
-and report back the specific error encountered.
+Evaluate the UI/UX of the site. If you hit any critical errors (e.g., page fails to load, JS errors), stop and report the exact issue.
 
-If there are no errors and you can proceed with the evaluation, check for any problems with the UX
-including not showing the correct content, or not being able to complete the task.
-Please list the problems if found, otherwise state your findings and evaluation of the UX/UI.
+If a login page appears, first try clicking "Login" — saved credentials may work.
+If login fields appear and no credentials are provided, do not guess. Stop and report that login is required. Suggest the user run setup_browser_state to log in and retry.
+
+If no errors block progress, proceed and attempt the task. Try a couple times if needed before giving up — unless blocked by missing login access.
+
+Report any UX issues (e.g., incorrect content, broken flows), or confirm everything worked smoothly.
+Take note of any opportunities for improvement in the UI/UX, test and think about the application like a real user would.
 """

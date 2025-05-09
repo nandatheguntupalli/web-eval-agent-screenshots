@@ -12,13 +12,10 @@ from pathlib import Path
 import requests
 
 from webEvalAgent.src.utils import stop_log_server
-# Assuming send_log is available here, adjust if necessary
-from webEvalAgent.src.log_server import send_log # Placeholder, ensure this is correct
-
-# Placeholder for send_log if not correctly imported above.
-# If you have a central logging setup, use that. Otherwise, this is a basic fallback.
-# def send_log(message, emoji=""):
-#     print(f"{emoji} {message}")
+import json
+import sys
+from typing import Any, Dict, List, Union
+from webEvalAgent.src.log_server import send_log
 
 # Set the API key to a fake key to avoid error in backend
 os.environ["ANTHROPIC_API_KEY"] = 'not_a_real_key'
@@ -27,14 +24,22 @@ os.environ["ANONYMIZED_TELEMETRY"] = 'false'
 # MCP imports
 from mcp.server.fastmcp import FastMCP, Context
 from mcp.types import TextContent
+# Removing the problematic import
+# from mcp.server.tool import Tool, register_tool
 
 # Import our modules
 from webEvalAgent.src.browser_manager import PlaywrightBrowserManager
 # from webEvalAgent.src.browser_utils import cleanup_resources # Removed import
-from webEvalAgent.src.api_utils import validate_api_key as validate_api_key_original # Renamed to avoid conflict
-from webEvalAgent.src.tool_handlers import handle_web_evaluation
+from webEvalAgent.src.api_utils import validate_api_key
+from webEvalAgent.src.tool_handlers import handle_web_evaluation, handle_setup_browser_state
 
-stop_log_server() # Stop the log server before starting the MCP server
+# MCP server modules
+from webEvalAgent.src.browser_utils import handle_browser_input
+from webEvalAgent.src.log_server import start_log_server, open_log_dashboard
+
+# Stop any existing log server to avoid conflicts
+# This doesn't start a new server, just ensures none is running
+stop_log_server()
 
 # Create the MCP server
 mcp = FastMCP("Operative")
@@ -42,6 +47,7 @@ mcp = FastMCP("Operative")
 # Define the browser tools
 class BrowserTools(str, Enum):
     WEB_EVAL_AGENT = "web_eval_agent"
+    SETUP_BROWSER_STATE = "setup_browser_state"  # Add new tool enum
 
 # Parse command line arguments (keeping the parser for potential future arguments)
 # parser = argparse.ArgumentParser(description='Run the MCP server with browser debugging capabilities')
@@ -324,44 +330,31 @@ def get_and_validate_api_key():
 
 
 @mcp.tool(name=BrowserTools.WEB_EVAL_AGENT)
-async def web_eval_agent(url: str, task: str, working_directory: str, ctx: Context) -> list[TextContent]:
+async def web_eval_agent(url: str, task: str, ctx: Context, headless_browser: bool = False) -> list[TextContent]:
     """Evaluate the user experience / interface of a web application.
 
     This tool allows the AI to assess the quality of user experience and interface design
     of a web application by performing specific tasks and analyzing the interaction flow.
 
-    Before this tool is used, the web application should already be running locally in a separate terminal.
+    Before this tool is used, the web application should already be running locally on a port.
 
     Args:
         url: Required. The localhost URL of the web application to evaluate, including the port number.
+            Example: http://localhost:3000, http://localhost:8080, http://localhost:4200, http://localhost:5173, etc.
+            Try to avoid using the path segments of the URL, and instead use the root URL.
         task: Required. The specific UX/UI aspect to test (e.g., "test the checkout flow",
              "evaluate the navigation menu usability", "check form validation feedback")
              Be as detailed as possible in your task description. It could be anywhere from 2 sentences to 2 paragraphs.
-        working_directory: Required. The root directory of the project
-        external_browser: Optional. Whether to show the browser window externally during evaluation. Defaults to False. 
+        headless_browser: Optional. Whether to hide the browser window popup during evaluation.
+        If headless_browser is True, only the operative control center browser will show, and no popup browser will be shown.
 
     Returns:
         list[list[TextContent, ImageContent]]: A detailed evaluation of the web application's UX/UI, including
                          observations, issues found, and recommendations for improvement
                          and screenshots of the web application during the evaluation
     """
-    external_browser = True
-    # Convert external_browser to headless parameter (inverse logic)
-    headless = not external_browser
-    
-    current_api_key = OPERATIVE_API_KEY_HOLDER.get("key")
-    if not current_api_key:
-        # This should ideally not happen if main() enforced key validation.
-        send_log(f"{RED}✗ API key not available in tool function. This indicates a setup issue.{NC}", "❌")
-        return [TextContent(type="text", text="❌ Error: Operative API Key is missing or was not validated during startup.")]
-
-    # Re-validate the key or rely on the initial validation? 
-    # The original code re-validates here using validate_api_key_original.
-    # For simplicity and to trust the startup validation, we can use the stored key.
-    # However, if the key could become invalid server-side during a long session, re-validation might be desired.
-    # Let's stick to the new server-side validation for consistency if we re-validate.
-    
-    is_valid, msg = await asyncio.to_thread(_validate_api_key_server_side, current_api_key)
+    headless = headless_browser
+    is_valid = await validate_api_key(api_key)
 
     if not is_valid:
         error_message_str = f"❌ Error: API Key validation failed when running the tool.\\n"
@@ -371,7 +364,6 @@ async def web_eval_agent(url: str, task: str, working_directory: str, ctx: Conte
     try:
         # Generate a new tool_call_id for this specific tool call
         tool_call_id = str(uuid.uuid4())
-        send_log(f"{BOLD}Generated new tool_call_id for web_eval_agent: {tool_call_id}{NC}", "🆔") # Using send_log
         return await handle_web_evaluation(
             {"url": url, "task": task, "headless": headless, "tool_call_id": tool_call_id},
             ctx,
@@ -418,6 +410,45 @@ async def web_eval_agent(url: str, task: str, working_directory: str, ctx: Conte
 #         # asyncio.run(cleanup_resources()) # Cleanup now handled in browser_utils
 #         send_log("Direct test run finished.", "🏁")
 
+@mcp.tool(name=BrowserTools.SETUP_BROWSER_STATE)
+async def setup_browser_state(url: str = None, ctx: Context = None) -> list[TextContent]:
+    """Sets up and saves browser state for future use.
+
+    This tool should only be called in one scenario:
+    1. The user explicitly requests to set up browser state/authentication
+
+    Launches a non-headless browser for user interaction, allows login/authentication,
+    and saves the browser state (cookies, local storage, etc.) to a local file.
+
+    Args:
+        url: Optional URL to navigate to upon opening the browser.
+        ctx: The MCP context (used for progress reporting, not directly here).
+
+    Returns:
+        list[TextContent]: Confirmation of state saving or error messages.
+    """
+    is_valid = await validate_api_key(api_key)
+
+    if not is_valid:
+        error_message_str = "❌ Error: API Key validation failed when running the tool.\n"
+        error_message_str += "   Reason: Free tier limit reached.\n"
+        error_message_str += "   👉 Please subscribe at https://operative.sh to continue."
+        return [TextContent(type="text", text=error_message_str)]
+    try:
+        # Generate a new tool_call_id for this specific tool call
+        tool_call_id = str(uuid.uuid4())
+        send_log(f"Generated new tool_call_id for setup_browser_state: {tool_call_id}")
+        return await handle_setup_browser_state(
+            {"url": url, "tool_call_id": tool_call_id},
+            ctx,
+            api_key
+        )
+    except Exception as e:
+        tb = traceback.format_exc()
+        return [TextContent(
+            type="text",
+            text=f"Error executing setup_browser_state: {str(e)}\n\nTraceback:\n{tb}"
+        )]
 
 def main():
     # Print the ASCII logo

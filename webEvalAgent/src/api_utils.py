@@ -25,5 +25,4 @@ async def validate_api_key(api_key: str) -> bool:
             result = response.json()
             return result.get("valid", False)
     except Exception as e:
-        print(f"Error validating API key: {str(e)}")
         return False

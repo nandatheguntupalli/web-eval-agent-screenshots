@@ -9,8 +9,6 @@ from typing import Optional
 env_path = pathlib.Path('.env')
 if env_path.exists():
     dotenv.load_dotenv()
-else:
-    print("No .env file found. Defaulting to render backend.")
 
 def get_backend_url(path: str = "") -> str:
     """

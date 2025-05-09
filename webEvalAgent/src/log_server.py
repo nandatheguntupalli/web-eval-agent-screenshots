@@ -8,11 +8,15 @@ from flask_socketio import SocketIO
 import logging
 import os
 from datetime import datetime
-import json
+import sys
 
 # Track active dashboard tabs
 active_dashboard_tabs = {}
 last_tab_activity = {}
+
+# Store current URL and task information
+current_url = ""
+current_task = ""
 
 # --- Async mode selection ---
 _async_mode = 'threading'
@@ -44,6 +48,11 @@ def send_static(path):
     """Serve static files (like CSS, JS if added later)."""
     static_folder = os.path.join(os.path.dirname(__file__), '../templates/static')
     return send_from_directory(static_folder, path)
+
+@app.route('/get_url_task')
+def get_url_task():
+    """Return the current URL and task as JSON."""
+    return {'url': current_url, 'task': current_task}
 
 # Dashboard tab tracking handlers
 @socketio.on('register_dashboard_tab')
@@ -100,6 +109,12 @@ def handle_disconnect():
         send_log(f"Disconnected from log server at {datetime.now().strftime('%H:%M:%S')}", "❌", log_type='status')
     except Exception:
         pass
+
+def set_url_and_task(url: str, task: str):
+    """Sets the current URL and task and broadcasts it to all connected clients."""
+    global current_url, current_task
+    current_url = url
+    current_task = task
 
 def send_log(message: str, emoji: str = "➡️", log_type: str = 'agent'):
     """Send a log message with an emoji prefix and type to all connected clients."""
@@ -195,7 +210,8 @@ def handle_browser_input_event(data):
     details = data.get('details')
     
     # Log to the dashboard as well
-    send_log(f"Received browser input: {event_type}", "🖱️", log_type='status')
+    if event_type != 'scroll':
+        send_log(f"Received browser input: {event_type}", "🖱️", log_type='status')
     
     # Import the handle_browser_input function and other utilities from browser_utils
     try:
@@ -221,13 +237,15 @@ def handle_browser_input_event(data):
         if loop is None:
             send_log(f"Input error: Browser task loop not available", "❌", log_type='status')
             return
-            
-        send_log(f"Scheduling {event_type} input handler in browser task loop", "🔄", log_type='status')
+        
+        # send_log(f"Scheduling {event_type} input handler in browser task loop", "🔄", log_type='status')
         # Schedule the coroutine call
         task = asyncio.run_coroutine_threadsafe(
             handle_browser_input(event_type, details),
             loop
         )
+        if event_type == 'scroll':
+            return 
         send_log(f"Input {event_type} scheduled for processing", "✅", log_type='status')
         
     except RuntimeError as e:
@@ -243,6 +261,8 @@ def start_log_server(host='127.0.0.1', port=5009):
     def run_server():
         # Use eventlet or gevent for production? For local dev, default Flask dev server is fine.
         # Setting log_output=False to reduce console noise from SocketIO itself
+        sys.stdout = open(os.devnull, 'w')
+        sys.stderr = open(os.devnull, 'w')
         socketio.run(app, host=host, port=port, log_output=False, use_reloader=False, allow_unsafe_werkzeug=True)
 
     # Check if templates directory exists
@@ -316,12 +336,12 @@ def open_log_dashboard(url='http://127.0.0.1:5009'):
             pass
 
 # Example usage (for testing this module directly)
-if __name__ == '__main__':
-    pass
-    start_log_server()
+if __name__ == "__main__":
+    start_log_server(port=5009)  # Use a different port
     import time
     time.sleep(2)
-    open_log_dashboard()
+    open_log_dashboard(url='http://127.0.0.1:5009')
+    set_url_and_task("https://www.example.com", "Test the URL and task display")
     # Use the new log_type argument
     send_log("Server started and dashboard opened.", "✅", log_type='status')
     time.sleep(1)
