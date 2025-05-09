@@ -161,7 +161,6 @@ def _configure_cursor_mcp_json(agent_project_path: Path, api_key=None):
         server_config = {
             "command": "uvx",
             "args": [
-                "--refresh-package",
                 "--from",
                 "git+https://github.com/nandatheguntupalli/web-eval-agent.git",
                 "webEvalAgent"
