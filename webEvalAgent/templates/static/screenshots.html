@@ -69,7 +69,7 @@
     <main class="container mx-auto px-4 flex-grow overflow-auto py-4">
         <div class="mb-4">
             <h3 class="text-xl font-semibold mb-2">Screenshots Gallery</h3>
-            <p class="text-light-secondary-text dark:text-dark-secondary-text mb-4">All screenshots from the current or most recent evaluation. Updates in real-time.</p>
+            <p class="text-light-secondary-text dark:text-dark-secondary-text mb-4">All screenshots from the current or most recent evaluation.</p>
         </div>
         
         <!-- Screenshots Container -->
@@ -187,8 +187,12 @@
             imgElement.className = 'w-full h-auto object-contain cursor-pointer';
             imgElement.loading = 'lazy'; // Lazy load images
             
+            // Store the index in the screenshots array for use when opening the full-size view
+            const screenshotIndex = screenshotsContainer.childElementCount;
+            
             imgElement.addEventListener('click', () => {
-                window.open(imageDataUrl, '_blank');
+                // Use the dedicated viewer page instead of the direct endpoint
+                window.open(`/screenshot-view/${screenshotIndex}`, '_blank');
             });
             
             screenshotDiv.appendChild(imgElement);

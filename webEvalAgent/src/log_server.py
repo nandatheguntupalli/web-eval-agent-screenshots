@@ -67,6 +67,20 @@ def get_screenshots():
     """Return the stored screenshots as JSON."""
     return jsonify(stored_screenshots)
 
+@app.route('/screenshot/<int:index>')
+def get_screenshot_by_index(index):
+    """Serve a specific screenshot by index."""
+    if index < 0 or index >= len(stored_screenshots):
+        return "Screenshot not found", 404
+    
+    # Return the raw data URL content
+    return {'screenshot': stored_screenshots[index]}
+
+@app.route('/screenshot-view/<int:index>')
+def screenshot_viewer(index):
+    """Serve the screenshot viewer HTML page."""
+    return render_template('static/screenshot-view.html')
+
 # Dashboard tab tracking handlers
 @socketio.on('register_dashboard_tab')
 def handle_register_tab(data):
