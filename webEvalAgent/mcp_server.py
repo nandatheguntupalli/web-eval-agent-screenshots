@@ -429,17 +429,17 @@ async def setup_browser_state(url: str = None, ctx: Context = None) -> list[Text
         list[TextContent]: Confirmation of state saving or error messages.
     """
     api_key = OPERATIVE_API_KEY_HOLDER["key"]
-    is_valid = await validate_api_key(api_key)
+    is_valid, msg = await validate_api_key(api_key)
 
     if not is_valid:
         error_message_str = "❌ Error: API Key validation failed when running the tool.\n"
-        error_message_str += "   Reason: Free tier limit reached.\n"
-        error_message_str += "   👉 Please subscribe at https://operative.sh to continue."
+        error_message_str += f"   Reason: {msg}\n" # Use message from validation
+        error_message_str += "   👉 Please subscribe at https://operative.sh if it's a limit issue."
         return [TextContent(type="text", text=error_message_str)]
     try:
         # Generate a new tool_call_id for this specific tool call
         tool_call_id = str(uuid.uuid4())
-        send_log(f"Generated new tool_call_id for setup_browser_state: {tool_call_id}")
+        send_log(f"Generated new tool_call_id for setup_browser_state: {tool_call_id}", "📝")
         return await handle_setup_browser_state(
             {"url": url, "tool_call_id": tool_call_id},
             ctx,
@@ -447,6 +447,7 @@ async def setup_browser_state(url: str = None, ctx: Context = None) -> list[Text
         )
     except Exception as e:
         tb = traceback.format_exc()
+        send_log(f"{RED}✗ Error executing setup_browser_state: {str(e)}\\nTraceback:\\n{tb}{NC}", "❌") # Using send_log
         return [TextContent(
             type="text",
             text=f"Error executing setup_browser_state: {str(e)}\n\nTraceback:\n{tb}"
